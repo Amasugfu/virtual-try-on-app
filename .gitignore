@@ -3,3 +3,7 @@
 models/ProHMR
 models/DaNet-DensePose2SMPL
 models/PyMAF
+models/data
+
+__pycache__/
+*.py[cod]

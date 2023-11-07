@@ -29,17 +29,18 @@ class BaseDecoder(nn.Module):
 
         return x
 
+
 class DepthDecoder(BaseDecoder):
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__(settings=settings)
-    
 
+    
 class NormDecoder(BaseDecoder):
     """
-    @return: batch(N) x channels(C = n_peelmaps*3) x 512 x 512 
+    @return: batch(N) x channels(C = n_peelmaps*4) x 512 x 512 
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
-        super().__init__(output_factor=3, settings=settings)
+        super().__init__(output_factor=4, settings=settings)
 
 
 class RGBDecoder(BaseDecoder):
