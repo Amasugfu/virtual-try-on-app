@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from torchvision.models.resnet import Bottleneck, conv1x1
 
-from settings.model_settings import DEFAULT_XCLOTH_SETTINGS, xClothSettings
-from sampling import build_sampling_layers, ConvDownSampling
+from .sampling import build_sampling_layers, ConvDownSampling
+from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS, xClothSettings
 
 """
 adapted from the original torch implementation of resnet

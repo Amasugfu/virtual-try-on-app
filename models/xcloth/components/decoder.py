@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from sampling import build_sampling_layers, ConvUpSampling
-from settings.model_settings import DEFAULT_XCLOTH_SETTINGS, xClothSettings
+from .sampling import build_sampling_layers, ConvUpSampling
+from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS, xClothSettings
 
 class BaseDecoder(nn.Module):
     def __init__(self, output_factor:int = 1, activation: nn.Module = nn.Sigmoid(), settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
