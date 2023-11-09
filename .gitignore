@@ -7,3 +7,6 @@ models/data
 
 __pycache__/
 *.py[cod]
+
+
+no_git_*
