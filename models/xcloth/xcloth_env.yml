@@ -9,6 +9,7 @@ dependencies:
   - backports=1.0=pyhd8ed1ab_3
   - backports.functools_lru_cache=1.6.5=pyhd8ed1ab_0
   - blas=1.0=mkl
+  - bottleneck=1.3.5=py310h9128911_0
   - brotli=1.0.9=h2bbff1b_7
   - brotli-bin=1.0.9=h2bbff1b_7
   - brotli-python=1.0.9=py310hd77b12b_7
@@ -84,6 +85,7 @@ dependencies:
   - libuv=1.44.2=h2bbff1b_0
   - libwebp=1.3.2=hbc33d0d_0
   - libwebp-base=1.3.2=h2bbff1b_0
+  - llvmlite=0.41.0=py310hf2fb9eb_0
   - lz4-c=1.9.4=h2bbff1b_0
   - markupsafe=2.1.1=py310h2bbff1b_0
   - matplotlib=3.8.0=py310haa95532_0
@@ -97,11 +99,14 @@ dependencies:
   - munkres=1.1.4=py_0
   - nest-asyncio=1.5.8=pyhd8ed1ab_0
   - networkx=3.1=py310haa95532_0
-  - numpy=1.26.0=py310h055cbcc_0
-  - numpy-base=1.26.0=py310h65a83cf_0
+  - numba=0.58.0=py310h4ed8f06_0
+  - numexpr=2.8.7=py310h2cd9be0_0
+  - numpy=1.24.3=py310h055cbcc_1
+  - numpy-base=1.24.3=py310h65a83cf_1
   - openjpeg=2.4.0=h4fc8c34_0
   - openssl=3.0.12=h2bbff1b_0
   - packaging=23.2=pyhd8ed1ab_0
+  - pandas=2.1.1=py310h4ed8f06_0
   - parso=0.8.3=pyhd8ed1ab_0
   - pickleshare=0.7.5=py_1003
   - pillow=10.0.1=py310h045eedc_0
@@ -120,10 +125,12 @@ dependencies:
   - pysocks=1.7.1=py310haa95532_0
   - python=3.10.13=he1021f5_0
   - python-dateutil=2.8.2=pyhd8ed1ab_0
+  - python-tzdata=2023.3=pyhd3eb1b0_0
   - python_abi=3.10=2_cp310
   - pytorch=2.1.0=py3.10_cuda11.8_cudnn8_0
   - pytorch-cuda=11.8=h24eeafa_5
   - pytorch-mutex=1.0=cuda
+  - pytz=2023.3.post1=py310haa95532_0
   - pyyaml=6.0.1=py310h2bbff1b_0
   - pyzmq=23.2.1=py310h73ada01_0
   - qt-main=5.15.2=h19c9488_10
@@ -178,6 +185,7 @@ dependencies:
     - plotly==5.18.0
     - portalocker==2.8.2
     - pyembree==0.1.12
+    - pytorch3d==0.7.5
     - pywin32==306
     - referencing==0.30.2
     - retrying==1.3.4
