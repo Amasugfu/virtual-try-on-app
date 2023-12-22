@@ -5,7 +5,7 @@ from .sampling import build_sampling_layers, ConvUpSampling
 from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS, xClothSettings
 
 class BaseDecoder(nn.Module):
-    def __init__(self, output_factor:int = 1, activation: nn.Module = nn.Sigmoid(), settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
+    def __init__(self, out_channels:int = 1, activation: nn.Module = nn.Sigmoid(), settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__()
 
         # upsampling
@@ -14,7 +14,7 @@ class BaseDecoder(nn.Module):
         self.upsampling = build_sampling_layers(ConvUpSampling, 256, 3)
 
         # decode conv
-        self.conv2d = nn.Conv2d(64, settings.n_peelmaps*output_factor, 7, padding=3)
+        self.conv2d = nn.Conv2d(64, settings.n_peelmaps*out_channels, 7, padding=3)
 
         # activation function
         self.act = activation
@@ -40,7 +40,7 @@ class NormDecoder(BaseDecoder):
     @return: batch(N) x channels(C = n_peelmaps*4) x 512 x 512 
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
-        super().__init__(output_factor=4, settings=settings)
+        super().__init__(out_channels=4, settings=settings)
 
 
 class RGBDecoder(BaseDecoder):
@@ -48,5 +48,5 @@ class RGBDecoder(BaseDecoder):
     @return: batch(N) x channels(C = n_peelmaps*3) x 512 x 512 
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
-        super().__init__(output_factor=3, activation=nn.Tanh(), settings=settings)
+        super().__init__(out_channels=3, activation=nn.Tanh(), settings=settings)
 

@@ -20,10 +20,10 @@ class XCloth(nn.Module):
     def get_smpl_prior(self, x_img: torch.Tensor):
         return x_img
 
-    def forward(self, x_img: torch.Tensor):
-        x_smpl = self.get_smpl_prior(x_img)
+    def forward(self, x_img: torch.Tensor, x_smpl: torch.Tensor = None):
+        if x_smpl is None: x_smpl = self.get_smpl_prior(x_img)
         x = self.encoder(x_img, x_smpl)
-        y = [decoder(x) for name, decoder in self.parallel_decoders.items()]
+        y = {name: decoder(x) for name, decoder in self.parallel_decoders.items()}
         return y
     
     def reconstruct3d(self, x_img: torch.Tensor):

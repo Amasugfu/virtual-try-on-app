@@ -79,7 +79,7 @@ class Encoder(nn.Module):
         """
 
         # concat
-        x = torch.concat((x_img, x_smpl), dim=0)
+        x = torch.concat((x_img, x_smpl), dim=1)
         if len(x.shape) == 3:
             x = x.unsqueeze(0)
         x = self.conv2d(x)
