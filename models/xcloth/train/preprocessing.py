@@ -1,9 +1,13 @@
 import numpy as np
 import pandas as pd
 import trimesh
+
 from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS
 
 from typing import Tuple
+
+import pyrender
+from PIL import Image
 
 
 def project_rays(mesh, 
@@ -51,7 +55,7 @@ def make_depth_peelmap(world_coords,
     return depth
 
 
-def make_rgba_peelmap(face_ids, world_coords, mesh, 
+def make_rgb_peelmap(face_ids, world_coords, mesh, 
                       row, col, 
                       dim: Tuple[int, int]):
     faces = mesh.faces[face_ids]     # indices of the 3 vertices of the face
@@ -61,7 +65,11 @@ def make_rgba_peelmap(face_ids, world_coords, mesh,
     rgba = mesh.visual.material.to_color(uv_hit.reshape(-1, 2))
     rgba_img = np.zeros((*dim, 4), dtype=np.uint8)
     rgba_img[row, col] = rgba.astype(np.uint8)
-    return rgba_img
+    
+    rgb_img = Image.fromarray(rgba_img)
+    rgb_img = np.array(rgb_img.convert("RGB"))
+
+    return np.moveaxis(rgb_img, -1, 0)
 
 
 def make_normal_peelmap(face_ids, mesh, 
@@ -70,14 +78,14 @@ def make_normal_peelmap(face_ids, mesh,
     normals = mesh.face_normals[face_ids]
     normal_img = np.zeros((*dim, 3))
     normal_img[row, col] = normals
-    return normal_img
+    return np.moveaxis(normal_img, -1, 0)
 
 
 def make_peelmaps(peelmaps,
                   mesh,
                   dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w)):
     pm_depth = []
-    pm_rgba = []
+    pm_rgb = []
     pm_normals = []
 
     for i, (world_coords, pixel_coords, face_ids) in enumerate(peelmaps):
@@ -85,10 +93,27 @@ def make_peelmaps(peelmaps,
         col = pixel_coords % dim[1]
 
         pm_depth.append(make_depth_peelmap(world_coords, row, col, dim))
-        pm_rgba.append(make_rgba_peelmap(face_ids, world_coords, mesh, row, col, dim))
+        pm_rgb.append(make_rgb_peelmap(face_ids, world_coords, mesh, row, col, dim))
         pm_normals.append(make_normal_peelmap(face_ids, mesh, row, col, dim))
 
-    return pm_depth, pm_rgba, pm_normals
+    return pm_depth, pm_normals, pm_rgb
+
+
+def render_front(mesh):
+    pr_mesh = pyrender.Mesh.from_trimesh(mesh)
+    scene = pyrender.Scene(ambient_light=[1., 1., 1.], bg_color=[0, 0, 0])
+    scene.add(pr_mesh)
+    camera = pyrender.PerspectiveCamera(yfov=np.pi/3, aspectRatio=1)
+    camera_pose = np.array([
+        [1, 0, 0, 0],
+        [0 ,1, 0, 0],
+        [0, 0, 1, 1],
+        [0, 0, 0, 1]
+    ])
+    scene.add(camera, pose=camera_pose)
+    r = pyrender.OffscreenRenderer(512, 512)
+    rgb, _ = r.render(scene)
+    return rgb[::-1]
 
 
 def process_model(path: str,
@@ -101,10 +126,20 @@ def process_model(path: str,
 
     @param: path: the path to the obj model
     
-    @return: the processed peelmaps
+    @return: mesh, rgb front img, depth peelmap, normal peelmap, rgb peelmap
     """
 
     mesh = trimesh.load(path)
+    img = render_front(mesh)
     peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
-    return make_peelmaps(peelmaps, mesh, grid_dim)
+    d, n, r = make_peelmaps(peelmaps, mesh, grid_dim)
 
+    from .data import MeshData
+
+    return MeshData(
+        path=path,
+        mesh=mesh, 
+        img=img, 
+        peelmap_depth=d,
+        peelmap_norm=n,
+        peelmap_rgb=r)
