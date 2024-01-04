@@ -9,9 +9,9 @@ from .components.utils import GarmentModel3D
 class XCloth(nn.Module):
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__()
-        self.settings = settings
-        self.encoder = Encoder(settings)
-        self.parallel_decoders = nn.ModuleDict({
+        self._settings = settings
+        self._encoder = Encoder(settings)
+        self._parallel_decoders = nn.ModuleDict({
             "Depth": DepthDecoder(settings),
             "Norm": NormDecoder(settings),
             "RGB": RGBDecoder(settings)
@@ -22,10 +22,14 @@ class XCloth(nn.Module):
 
     def forward(self, x_img: torch.Tensor, x_smpl: torch.Tensor = None):
         if x_smpl is None: x_smpl = self.get_smpl_prior(x_img)
-        x = self.encoder(x_img, x_smpl)
-        y = {name: decoder(x) for name, decoder in self.parallel_decoders.items()}
+        x = self._encoder(x_img, x_smpl)
+        y = {name: decoder(x) for name, decoder in self._parallel_decoders.items()}
         return y
     
     def reconstruct3d(self, x_img: torch.Tensor):
         model = GarmentModel3D(*self(x_img))
         return model
+    
+    @property
+    def n_peelmaps(self):
+        return self._settings.n_peelmaps

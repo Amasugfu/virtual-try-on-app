@@ -8,6 +8,9 @@ class BaseDecoder(nn.Module):
     def __init__(self, out_channels:int = 1, activation: nn.Module = nn.Sigmoid(), settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__()
 
+        self._n_peelmaps = settings.n_peelmaps
+        self._out_channels = out_channels
+
         # upsampling
         # self.upsampling1 = nn.ConvTranspose2d(256, 128, 3, stride=2)
         # self.upsampling2 = nn.ConvTranspose2d(128, 64, 3, stride=2)
@@ -22,12 +25,14 @@ class BaseDecoder(nn.Module):
     def forward(self, x: torch.Tensor):
         """
         @param x: output of the shared encoder
+
+        @return: B x P x C x H x W tensor
         """
         x = self.upsampling(x)
         x = self.conv2d(x)
         x = self.act(x)
 
-        return x
+        return x.reshape(-1, self._n_peelmaps, self._out_channels, x.size()[-2], x.size()[-1])
 
 
 class DepthDecoder(BaseDecoder):
@@ -37,15 +42,15 @@ class DepthDecoder(BaseDecoder):
     
 class NormDecoder(BaseDecoder):
     """
-    @return: batch(N) x channels(C = n_peelmaps*4) x 512 x 512 
+    @return: batch(B) x channels(C = n_peelmaps*3) x 512 x 512 
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
-        super().__init__(out_channels=4, settings=settings)
+        super().__init__(out_channels=3, settings=settings)
 
 
 class RGBDecoder(BaseDecoder):
     """
-    @return: batch(N) x channels(C = n_peelmaps*3) x 512 x 512 
+    @return: batch(B) x channels(C = n_peelmaps*3) x 512 x 512 
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__(out_channels=3, activation=nn.Tanh(), settings=settings)

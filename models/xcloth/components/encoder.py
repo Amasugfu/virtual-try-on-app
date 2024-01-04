@@ -74,8 +74,8 @@ class Encoder(nn.Module):
 
     def forward(self, x_img: torch.Tensor, x_smpl: torch.Tensor):
         """
-        @param x_img: batch(N) x 4(C) x 512(H) x 512(W) rgba image
-        @param x_smpl: batch(N) x 4(C) x 512(H) x 512(W) peel map
+        @param x_img: batch(B) x 4(C) x 512(H) x 512(W) rgba image
+        @param x_smpl: batch(B) x 4(C) x 512(H) x 512(W) peel map
         """
 
         # concat
