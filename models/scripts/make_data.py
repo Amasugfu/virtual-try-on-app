@@ -10,19 +10,29 @@ if m_path not in sys.path:
 from xcloth.train.data import DataLoader
 
 
-def main(in_dir, out_dir):
+def make_truth(in_dir, out_dir):
     print(f"-- started loading from <{in_dir}> --")
-    loader = DataLoader()
-    loader.load_n_process(in_dir)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    loader.save(os.path.join(out_dir, "registered_data.pickle"))
-    print(f"-- finished. saving to <{out_dir}> --")
+    loader = DataLoader()
+    loader.load_n_process(in_dir, out_dir, verbose=True, log_file="processed.log")
+    print(f"-- finished --")
+
+
+def make_input(in_dir, out_dir):
+    pass
+
+
+def main(args):
+    for in_dir, out_dir, target in zip(args.input_folder, args.output_folder, args.target):
+        locals()[f"make_{target}"](in_dir, out_dir)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input-folder", required=True)
-    parser.add_argument("-o", "--output-folder", required=True)
+    parser.add_argument("-t", "--target", nargs="+", default=["input", "truth"], required=True)
+    parser.add_argument("-i", "--input-folder", nargs="+", required=True)
+    parser.add_argument("-o", "--output-folder", nargs="+", required=True)
     args = parser.parse_args()
-    main(args.input_folder, args.output_folder)
+
+    main(args)

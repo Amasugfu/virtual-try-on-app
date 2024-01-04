@@ -9,6 +9,11 @@ from typing import Tuple
 import pyrender
 from PIL import Image
 
+import pickle
+
+from smplpytorch.pytorch.smpl_layer import SMPL_Layer
+import torch
+
 
 def project_rays(mesh, 
                  grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
@@ -88,7 +93,7 @@ def make_peelmaps(peelmaps,
     pm_rgb = []
     pm_normals = []
 
-    for i, (world_coords, pixel_coords, face_ids) in enumerate(peelmaps):
+    for world_coords, pixel_coords, face_ids in peelmaps:
         row = pixel_coords // dim[0]
         col = pixel_coords % dim[1]
 
@@ -116,11 +121,13 @@ def render_front(mesh):
     return rgb[::-1]
 
 
-def process_model(path: str,
-                  grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
-                  fov: Tuple[float, float] = (60.0, 60.0), 
-                  z: float = 1.0,
-                  max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps):
+def process_garments(
+    path: str,
+    grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
+    fov: Tuple[float, float] = (60.0, 60.0), 
+    z: float = 1.0,
+    max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps
+):
     """
     process the obj model into [depth, rgba, normals] peelmap representation
 
@@ -143,3 +150,55 @@ def process_model(path: str,
         peelmap_depth=d,
         peelmap_norm=n,
         peelmap_rgb=r)
+
+
+def process_poses(
+    path: str,
+    grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
+    fov: Tuple[float, float] = (60.0, 60.0), 
+    z: float = 1.0,
+    max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps
+):
+    """
+    process the pose into peelmap representation
+
+    @param: path: the path to the obj model
+    
+    @return: depth peelmaps
+    """
+    with open(path, "rb") as f:
+        src_dict = pickle.load(f)
+
+    smpl_layer = SMPL_Layer(
+        center_idx=0,
+        gender='male',
+        model_root='../../smpl/',
+    )
+
+    pose = src_dict['pose']
+    trans = src_dict['trans']
+    scale = src_dict['scale']
+
+    fin_pose= torch.FloatTensor(pose).unsqueeze(0)
+    # fin_pose = fin_pose.cuda()
+
+    fin_shape = torch.zeros((1,10)).float()
+    fin_shape = fin_shape.cuda()
+
+    ret_verts, _ = smpl_layer(fin_pose, fin_shape)
+
+    ret_verts = ret_verts.detach().cpu().numpy()[0]
+
+    trans_verts = ret_verts * scale + trans
+
+    mesh = trimesh.Trimesh(vertices=trans_verts, faces=smpl_layer.th_faces.detach().cpu().numpy())
+    peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
+    pm_depth = []
+
+    for world_coords, pixel_coords, _ in enumerate(peelmaps):
+        row = pixel_coords // grid_dim[0]
+        col = pixel_coords % grid_dim[1]
+
+        pm_depth.append(make_depth_peelmap(world_coords, row, col, grid_dim))
+    
+    return pm_depth
