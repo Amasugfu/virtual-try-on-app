@@ -154,10 +154,11 @@ def process_garments(
 
 def process_poses(
     path: str,
+    smpl_path: str,
     grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
     fov: Tuple[float, float] = (60.0, 60.0), 
     z: float = 1.0,
-    max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps
+    max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps,
 ):
     """
     process the pose into peelmap representation
@@ -172,7 +173,7 @@ def process_poses(
     smpl_layer = SMPL_Layer(
         center_idx=0,
         gender='male',
-        model_root='../../smpl/',
+        model_root=smpl_path,
     )
 
     pose = src_dict['pose']
