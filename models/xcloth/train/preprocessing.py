@@ -195,7 +195,7 @@ def process_poses(
     peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
     pm_depth = []
 
-    for world_coords, pixel_coords, _ in enumerate(peelmaps):
+    for world_coords, pixel_coords, _ in peelmaps:
         row = pixel_coords // grid_dim[0]
         col = pixel_coords % grid_dim[1]
 
