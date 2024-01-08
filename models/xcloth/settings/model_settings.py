@@ -11,7 +11,7 @@ class xClothSettings:
     """
     input_h: int = 512
     input_w: int = 512
-    n_intput_channels: int = 4
+    n_intput_channels: int = 3
     n_peelmaps: int = 4
 
     """

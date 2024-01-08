@@ -4,7 +4,7 @@ import trimesh
 
 from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS
 
-from typing import Tuple
+from typing import Tuple, Any
 
 import pyrender
 from PIL import Image
@@ -88,20 +88,21 @@ def make_normal_peelmap(face_ids, mesh,
 
 def make_peelmaps(peelmaps,
                   mesh,
-                  dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w)):
-    pm_depth = []
-    pm_rgb = []
-    pm_normals = []
+                  dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w),
+                  target=["depth, norm, rgb"]):
+    pm = {
+       t: [] for t in target 
+    }
 
     for world_coords, pixel_coords, face_ids in peelmaps:
         row = pixel_coords // dim[0]
         col = pixel_coords % dim[1]
 
-        pm_depth.append(make_depth_peelmap(world_coords, row, col, dim))
-        pm_rgb.append(make_rgb_peelmap(face_ids, world_coords, mesh, row, col, dim))
-        pm_normals.append(make_normal_peelmap(face_ids, mesh, row, col, dim))
+        if "depth" in pm: pm["depth"].append(make_depth_peelmap(world_coords, row, col, dim))
+        if "norm" in pm: pm["norm"].append(make_normal_peelmap(face_ids, mesh, row, col, dim))
+        if "rgb" in pm: pm["rgb"].append(make_rgb_peelmap(face_ids, world_coords, mesh, row, col, dim))
 
-    return pm_depth, pm_normals, pm_rgb
+    return pm
 
 
 def render_front(mesh):
@@ -139,7 +140,7 @@ def process_garments(
     mesh = trimesh.load(path)
     img = render_front(mesh)
     peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
-    d, n, r = make_peelmaps(peelmaps, mesh, grid_dim)
+    pm = make_peelmaps(peelmaps, mesh, grid_dim)
 
     from .data import MeshData
 
@@ -147,13 +148,13 @@ def process_garments(
         path=path,
         mesh=mesh, 
         img=img, 
-        peelmap_depth=d,
-        peelmap_norm=n,
-        peelmap_rgb=r)
+        peelmap_depth=pm["depth"],
+        peelmap_norm=pm["norm"],
+        peelmap_rgb=pm["rgb"])
 
 
 def process_poses(
-    path: str,
+    src_dict: str|Any,
     smpl_path: str,
     grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
     fov: Tuple[float, float] = (60.0, 60.0), 
@@ -167,8 +168,9 @@ def process_poses(
     
     @return: depth peelmaps
     """
-    with open(path, "rb") as f:
-        src_dict = pickle.load(f)
+    if type(src_dict) == str:
+        with open(src_dict, "rb") as f:
+            src_dict = pickle.load(f)
 
     smpl_layer = SMPL_Layer(
         center_idx=0,
@@ -194,12 +196,6 @@ def process_poses(
 
     mesh = trimesh.Trimesh(vertices=trans_verts, faces=smpl_layer.th_faces.detach().cpu().numpy())
     peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
-    pm_depth = []
-
-    for world_coords, pixel_coords, _ in peelmaps:
-        row = pixel_coords // grid_dim[0]
-        col = pixel_coords % grid_dim[1]
-
-        pm_depth.append(make_depth_peelmap(world_coords, row, col, grid_dim))
+    pm_depth = make_peelmaps(peelmaps, mesh, grid_dim, target=["depth"])["depth"]
     
     return pm_depth
