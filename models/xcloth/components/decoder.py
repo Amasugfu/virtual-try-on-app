@@ -66,5 +66,5 @@ class RGBDecoder(BaseDecoder):
         super().__init__(out_channels=3, n_peelmaps=settings.n_peelmaps - 1, activation=nn.Tanh())
 
     def forward(self, x: Tensor):
-        return super().forward(x).abs()
+        return (super().forward(x) + 1)/2
 

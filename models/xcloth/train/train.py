@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 
 from matplotlib import pyplot as plt
-from typing import Type, List, Dict
+from typing import Type, List, Dict, Any
 
 from ..production import XCloth
 
@@ -14,7 +14,8 @@ def __epoch(
         Y_train: Dict[str, torch.Tensor], 
         optimizer: torch.optim.Optimizer,
         weight: List[float],
-        reduction: str|None):
+        reduction: str|None,
+        separate_bg: bool):
     """
     @param: X_train: N x B x C[4 (image) + P (peelmaps)] x H[512] x W[512]
     @param: Y_train: Dict[N x B x P x C[1 (depth) | 3 (normal) | 3 (rgb)] x H x W]
@@ -45,6 +46,11 @@ def __epoch(
 
         # sum of loss of peelmap layers
         for j in range(model.n_peelmaps):
+
+            # TODO: separate foreground and background loss
+            if separate_bg:
+                pass
+
             loss_d += loss_l1(result["Depth"][:, j], Y_train["Depth"][i, :, j])
             loss_norm += loss_l2(result["Norm"][:, j], Y_train["Norm"][i, :, j])
 
@@ -73,12 +79,13 @@ def train_model(
         verbose: bool = False,
         plot: bool = False,
         reduction: str|None = "sum",
-        params_path: str|None = None):
+        params_path: str|None = None,
+        separate_bg: bool = False):
     
     """
     @param: X_train: N x B x C[8] x H[512] x W[512]
     @param: Y_train: Dict[N x B x P x C[1 (depth) | 3 (normal) | 3 (rgb)] x H x W]
-    @param: weight: loss weight in the order of [depth, seg, norm, rgb]
+    @param: weight: loss weight in the order of [depth, seg, norm, rgb, [fg, bg]]
     
     P: number of peelmaps
     N: number of batches
@@ -99,7 +106,8 @@ def train_model(
             Y_train,
             optim,
             weight,
-            reduction
+            reduction,
+            separate_bg
         )
 
         loss_hist.append(loss)

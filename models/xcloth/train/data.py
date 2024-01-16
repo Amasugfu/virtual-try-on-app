@@ -131,21 +131,27 @@ class DataLoader:
             log_file.write(f"{name}\n")
             log_file.flush()
 
-    def load_all(self, root_dir, pose_dir="pose", mesh_dir="mesh"):
-        self.load_dir(root_dir, pose_dir, self.__registered_pose)
-        self.load_dir(root_dir, mesh_dir, self.__registered_mesh)
+    def load_all(self, root_dir, pose_dir="pose", mesh_dir="mesh", **kwargs):
+        self.load_dir(root_dir, pose_dir, self.__registered_pose, **kwargs)
+        self.load_dir(root_dir, mesh_dir, self.__registered_mesh, **kwargs)
 
     @staticmethod
-    def load_dir(root_dir, sub_dir, target):
+    def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
         """
         load pose peelmaps, which is a list of dict of H x W matrix
 
         the data should be store as root_dir/sub_dir/name.pkl
         """
         for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
+            name = filename.replace('\\', '/').split('/')[-1][:-4]
+
+            if mask is not None:
+                if excld and name in mask: continue
+                if not excld and name not in mask: continue
+
             with open(filename, "rb") as file:
                 data = pickle.load(file)
-                target[filename.replace('\\', '/').split('/')[-1][:-4]] = data
+                target[name] = data
 
     def make_tensors(self, batch):
         """
@@ -178,7 +184,11 @@ class DataLoader:
 
         return pose, *mesh
 
-    def make_Xy(self, pose, img, depth, norm, rgb, scale_rgb=True, cuda=True, dtype=torch.float32):
+    def make_Xy(self, pose, img, depth, norm, rgb, 
+                scale_rgb=True, 
+                cuda=True, 
+                dtype=torch.float32, 
+                depth_offset=0.):
         """
         @param: pose: N x B x P x H x W
         @param: img: N x B x 3 x H x W
@@ -197,11 +207,12 @@ class DataLoader:
 
         identity = lambda x: x.to(dtype=dtype).cuda() if cuda else x.to(dtype=dtype)
 
+        pose[pose != 0] += depth_offset
         X = identity(torch.concatenate([img, pose], dim=2))
-        rgb = rgb[:, :, 1:]
 
+        depth[depth != 0] += depth_offset
         return X, {
             "Depth": identity(depth).unsqueeze(dim=3),
             "Norm": identity(norm),
-            "RGB": identity(rgb)
+            "RGB": identity(rgb)[:, :, 1:]
         }
