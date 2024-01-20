@@ -68,7 +68,7 @@ def transform_coords_norm2real(
 
 
 # reconstruct from depth
-def reconstruct_from_depth(pm_depth, thres, z, fov):
+def reconstruct_from_depth(pm_depth, thres, z, fov, depth_offset=0.):
     """
     reconstruct point cloud from depth peelmaps
 
@@ -90,8 +90,9 @@ def reconstruct_from_depth(pm_depth, thres, z, fov):
     for depth in pm_depth:
         # flatten depth peelmaps --> N x 1
         f_d = depth[row, col].reshape(-1, 1)
-        thres_mask = (np.abs(depth) > thres)[row, col]
+        thres_mask = (depth > thres)[row, col]
         # reconstruct original (x, y) coordinates
+        f_d -= depth_offset
         p = real_coords * (1 - f_d/z)
         p = np.hstack([p, f_d])
 
@@ -99,7 +100,11 @@ def reconstruct_from_depth(pm_depth, thres, z, fov):
 
 
 def partial_mesh(pcds):
-    return pcds
+    radii = [0.005, 0.01, 0.02, 0.04]
+    for pcd in pcds:
+        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+            pcd, o3d.utility.DoubleVector(radii))
+        yield mesh
 
 
 def poisson_surface_reconsturction(pcd, depth):
@@ -107,8 +112,25 @@ def poisson_surface_reconsturction(pcd, depth):
     return mesh
 
 
-def refine_geometry(pcds, depth):
-    mesh, _ = poisson_surface_reconsturction(np.sum(pcds), depth)
+def refine_geometry(pcds, depth, mode):
+    pcd = np.sum(pcds)
+    # pcd.orient_normals_consistent_tangent_plane(100)
+
+    meshes = partial_mesh(pcds)
+
+    if mode == "poisson":
+        mesh, _ = poisson_surface_reconsturction(pcd, depth)
+    elif mode == "ballpivoting":
+        # estimate radius for rolling ball
+        distances = pcd.compute_nearest_neighbor_distance()
+        avg_dist = np.mean(distances)
+        radius = 1.5 * avg_dist   
+
+        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
+           pcd,
+           o3d.utility.DoubleVector([radius, radius * 2]))
+        
+
     return mesh
 
 
@@ -144,26 +166,32 @@ class GarmentModel3D:
     def from_tensor_dict(cls, t_dict, B, **kwargs):
         return [
             cls(
-                img=(tmp := t_dict["Img"][i].cpu().numpy()),
+                img=t_dict["Img"][i].cpu().numpy(),
                 pm_depth=t_dict["Depth"][i].cpu().numpy(), 
                 pm_norm=t_dict["Norm"][i].cpu().numpy(), 
-                pm_rgb=np.concatenate([np.expand_dims(tmp, 0), t_dict["RGB"][i].cpu().numpy()], axis=0),
+                pm_rgb=t_dict["RGB"][i].cpu().numpy(),
                 **kwargs
-            )
+            ).make_rgb()
             for i in range(B)
         ]
+    
+    def make_rgb(self):
+        if self.pm_rgb.shape[0] == self.pm_depth.shape[0] - 1:
+            self.pm_rgb = np.concatenate([np.expand_dims(self.img, 0), self.pm_rgb], axis=0)
+        return self
 
-    def to_obj(self, depth=9, path: str|None = None):
+    def to_obj(self, depth=9, path: str|None = None, mode="poisson"):
         """
         parse to an OBJ 3D model.
 
+        @param: mode: `"poisson" | "ballpivoting"`
         @param: depth: poisson surface reconstruction depth
 
         @return: triange mesh with texture
         """
         if self.pcds is None: self.reconstruct()
 
-        mesh = refine_geometry(self.pcds, depth=depth)
+        mesh = refine_geometry(self.pcds, depth=depth, mode=mode)
         mesh = map_texture(mesh)
 
         if path is not None:
@@ -177,7 +205,7 @@ class GarmentModel3D:
         """
         pass
 
-    def reconstruct(self, thres: float = 5e-5, path: str|None = None):
+    def reconstruct(self, thres: float = 5e-5, depth_offset=0., path: str|None = None):
         """
         reconstruct the model as a 3d meshes using the peelmaps.
         texture is also generated.
@@ -189,12 +217,16 @@ class GarmentModel3D:
         """
         pcds = []
 
-        for i, (pcd, thres_mask, row_id, col_id) in enumerate(reconstruct_from_depth(self.pm_depth.squeeze(), thres, self.camera_settings.z, self.camera_settings.fov)):
+        for i, (pcd, thres_mask, row_id, col_id) in enumerate(reconstruct_from_depth(self.pm_depth.squeeze(), thres, self.camera_settings.z, self.camera_settings.fov, depth_offset=depth_offset)):
             norm = np.moveaxis(self.pm_norm[i], 0, -1)[row_id, col_id]
             rgb = np.moveaxis(self.pm_rgb[i], 0, -1)[row_id, col_id]
             
             if self.mask is not None:
                 thres_mask = thres_mask & self.mask[row_id, col_id]
+
+            # if there is no i-th intersection, there must be no (i+1)-th intersection
+            if thres_mask.sum() == 0:
+                break
 
             reconstructed_pcd = o3d.geometry.PointCloud()
             reconstructed_pcd.points = o3d.utility.Vector3dVector(pcd[thres_mask])

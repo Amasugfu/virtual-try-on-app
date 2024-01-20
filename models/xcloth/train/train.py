@@ -36,6 +36,12 @@ def __epoch(
     
     for i in range(N):
         optimizer.zero_grad()
+
+        # TODO: move data to cuda
+        X = X_train[i, :].clone().cuda()
+        Y = {
+            i: v[i, :].clone().cuda() for i, v in Y_train.items()
+        }
         
         # B x P x H x W
         result = model(X_train[i, :, :3], X_train[i, :, 3:])
@@ -47,11 +53,14 @@ def __epoch(
         # sum of loss of peelmap layers
         for j in range(model.n_peelmaps):
 
-            # TODO: separate foreground and background loss
+            # separate foreground and background loss
             if separate_bg:
-                pass
+                fg_mask = (Y_train["Depth"][i, :, j] != 0).int()
+                loss_d += weight[4]*loss_l1(result["Depth"][:, j]*fg_mask, Y_train["Depth"][i, :, j]) \
+                            + weight[5]*loss_l1(result["Depth"][:, j]*(1-fg_mask), Y_train["Depth"][i, :, j])
+            else:
+                loss_d += loss_l1(result["Depth"][:, j], Y_train["Depth"][i, :, j])
 
-            loss_d += loss_l1(result["Depth"][:, j], Y_train["Depth"][i, :, j])
             loss_norm += loss_l2(result["Norm"][:, j], Y_train["Norm"][i, :, j])
 
             if j < model.n_peelmaps - 1:

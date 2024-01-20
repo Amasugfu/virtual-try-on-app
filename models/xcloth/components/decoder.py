@@ -52,15 +52,18 @@ class DepthDecoder(BaseDecoder):
     
 class NormDecoder(BaseDecoder):
     """
-    @return: batch(B) x channels(C = n_peelmaps*3) x 512 x 512 
+    @return: C = 3
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
-        super().__init__(out_channels=3, n_peelmaps=settings.n_peelmaps)
+        super().__init__(out_channels=3, n_peelmaps=settings.n_peelmaps, activation=nn.Tanh())
+
+    def forward(self, x:Tensor):
+        return nn.functional.normalize(super().forward(x), dim=2)
 
 
 class RGBDecoder(BaseDecoder):
     """
-    @return: batch(B) x channels(C = (n_peelmaps - 1)*3) x 512 x 512 
+    @return: P = n_peelmaps - 1, C = 3
     """
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
         super().__init__(out_channels=3, n_peelmaps=settings.n_peelmaps - 1, activation=nn.Tanh())

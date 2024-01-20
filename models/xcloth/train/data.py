@@ -9,6 +9,8 @@ from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS
 import os, glob
 import pickle
 import torch
+from torch.utils.data import Dataset
+
 import numpy as np
 
 
@@ -20,6 +22,10 @@ class MeshData:
     peelmap_depth: List[Any]
     peelmap_norm: List[Any]
     peelmap_rgb: List[Any]
+
+
+class MeshDataSet(Dataset):
+    pass
 
 
 class DataLoader:
