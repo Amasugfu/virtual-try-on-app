@@ -26,6 +26,9 @@ def main(args):
         print("[INFO] training model")
 
     model = XCloth().cuda()
+    if args.recover:
+        model.load(args.checkpoint)
+        
     train_model(
         model,
         dataset,
@@ -52,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--mask", nargs="+")
     parser.add_argument("-e", "--exclude", nargs="?", default=False, const=True)
     parser.add_argument("-v", "--verbose", nargs="?", default=False, const=True)
+    parser.add_argument("-r", "--recover", nargs="?", default=False, const=True)
     parser.add_argument("--plot_path")
     args = parser.parse_args()
 
