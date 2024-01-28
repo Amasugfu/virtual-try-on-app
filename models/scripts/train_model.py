@@ -26,15 +26,20 @@ def main(args):
         print("[INFO] training model")
 
     model = XCloth().cuda()
+    n_epoch = int(args.n_epoch)
+    lr = float(args.lr),
+
     if args.recover:
-        model.load(args.checkpoint)
-        
+        n = model.load(args.checkpoint)
+        n_epoch -= n
+        lr *= 0.95**(n)
+
     train_model(
         model,
         dataset,
         batch_size=int(args.batch_size),
-        n_epoch=int(args.n_epoch),
-        lr=float(args.lr),
+        n_epoch=n_epoch,
+        lr=lr,
         reduction="mean",
         weight=[1., 0.1, 1., 0.05, 1, 0.5],
         separate_bg=True,

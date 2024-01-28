@@ -118,7 +118,7 @@ def train_model(
         if verbose: print(f"epoch {epoch}: loss: {loss}")
 
         if params_path is not None:
-            model.save(params_path)
+            model.save(params_path, epoch)
             
         scheduler.step()
 
