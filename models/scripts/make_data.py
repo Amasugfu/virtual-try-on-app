@@ -11,11 +11,11 @@ def main(args):
     for in_dir, out_dir, target in zip(args.input_folder, args.output_folder, args.target):
         print(f"-- started loading [{target}] from [{in_dir}] --")
 
-        from xcloth.train.data import DataLoader
+        from xcloth.train.data import DataProccessor
 
         if not os.path.exists(out_dir):
             os.makedirs(out_dir)
-        loader = DataLoader()
+        loader = DataProccessor()
         loader.process_data(in_dir, out_dir, whitelist=args.whitelist_path, target=target, no_replace=not args.force_replace, verbose=args.verbose, log_file=args.log_file, smpl_path=args.smpl_path)
         print(f"-- finished --")
        

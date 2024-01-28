@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Dict
 from trimesh import Trimesh
 
 from .preprocessing import process_garments, process_poses
@@ -14,6 +14,29 @@ from torch.utils.data import Dataset
 import numpy as np
 
 
+def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
+    """
+    load pose peelmaps, which is a list of dict of H x W matrix
+
+    the data should be store as root_dir/sub_dir/name.pkl
+
+    @param: target: storage dictionary
+    @param: mask: white/blacklist
+    @param: exclud: `True` if the mask is a blacklist and `False` if the mask is whitelist
+    """
+    for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
+        name = filename.replace('\\', '/').split('/')[-1][:-4]
+
+        if mask is not None:
+            if excld:
+                if name in mask: continue
+            elif name not in mask: continue
+
+        with open(filename, "rb") as file:
+            data = pickle.load(file)
+            target[name] = data
+
+
 @dataclass
 class MeshData:
     path: str
@@ -25,18 +48,40 @@ class MeshData:
 
 
 class MeshDataSet(Dataset):
-    pass
+    def __init__(self, 
+                 root_dir: str, 
+                 pose_dir: str = "pose", 
+                 mesh_dir: str = "mesh", 
+                 mask=None, excld=True):
+        """
+        @param: root_dir: path to the root directory.
+        @param: pose_dir: name of the directory storing processed pose pickles.
+        @param: mesh_dir: name of the directory storing processed mesh pickles.
+        @param: mask: white/blacklist
+        @param: exclud: `True` if the mask is a blacklist and `False` if the mask is whitelist
+        """
+        self.__root_dir = root_dir
+        self.__pose_dir = pose_dir
+        self.__mesh_dir = mesh_dir
+        self.__mask = mask
+        self.__excld = excld
 
-
-class DataLoader:
-    def __init__(self, settings=DEFAULT_XCLOTH_SETTINGS) -> None:
         self.__registered_pose = {}
         self.__registered_mesh = {}
-        self.__settings = settings
-        self.__TARGET_FUNC_MAP = {
-            "input": self.__process_poses,
-            "truth": self.__process_garments,
-        }
+        self.reload_all()
+
+        self.__X = None
+        self.__y = None
+
+    def __len__(self):
+        return len(self.__X) if self.__X is not None else 0
+    
+    def __getitem__(self, index) -> Any:
+        return self.__X[index], self.__y[index]["Depth"], self.__y[index]["Norm"], self.__y[index]["RGB"]
+
+    def reload_all(self):
+        load_dir(self.__root_dir, self.__pose_dir, self.__registered_pose, self.__mask, self.__excld)
+        load_dir(self.__root_dir, self.__mesh_dir, self.__registered_mesh, self.__mask, self.__excld)
 
     @property
     def stats(self):
@@ -47,17 +92,74 @@ class DataLoader:
             "extra pose": self.__registered_pose.keys() - self.__registered_mesh.keys(),
             "extra mesh": self.__registered_mesh.keys() - self.__registered_pose.keys(),
         }
-    
-    @property
-    def pose(self):
-        return self.__registered_pose
-    
-    @property
-    def mesh(self):
-        return self.__registered_mesh
-    
-    def __getitem__(self, i):
-        return self.__registered_pose[i], self.__registered_mesh[i]
+
+    def make_Xy(self,
+                scale_rgb=True, 
+                dtype=torch.float32, 
+                depth_offset=0.):
+        """
+        tranform the data into tensors which can be fed directly to the model
+
+        only data with both pose and mesh will be transformed
+
+        X: N x (3 + P) x H x W
+        y: N x Dict[
+            depth[P x 1 x H x W], 
+            norm[P x 3 x H x W], 
+            rgb[P x 3 x H x W]
+            ]
+
+        Notes: 
+        N: total number of data
+        P: number of peeled layers
+        """
+        # ensure every pose has its corresponding mesh
+        keys = list(self.__registered_pose.keys() & self.__registered_mesh.keys())
+
+        # mnake input
+        pose = np.stack([np.stack(self.__registered_pose[i]) for i in keys])    # N x P x H x W
+        pose = torch.from_numpy(pose)
+
+        pose[pose != 0] += depth_offset
+        
+        img = np.stack([np.moveaxis(self.__registered_mesh[i].img, -1, 0) for i in keys])   # N x 3 x H x W
+        if scale_rgb: img = img / 255
+
+        self.__X = torch.concatenate([torch.from_numpy(img), pose], dim=1).to(dtype=dtype)
+        
+        # make truth
+        def __make_depth(__m):
+            __depth = torch.from_numpy(np.stack(__m.peelmap_depth)).to(dtype=dtype)
+            __depth[__depth != 0] += depth_offset
+            return __depth.unsqueeze(dim=1)
+
+        def __make_norm(__m):
+            __norm = torch.from_numpy(np.stack(__m.peelmap_norm)).to(dtype=dtype)
+            return __norm
+
+        def __make_rgb(__m):
+            __rgb = torch.from_numpy(np.stack(__m.peelmap_rgb)).to(dtype=dtype)[1:]
+            if scale_rgb: __rgb = __rgb / 255
+            return __rgb
+
+        mesh = [
+            {
+                "Depth": __make_depth(m := self.__registered_mesh[i]), 
+                "Norm": __make_norm(m), 
+                "RGB": __make_rgb(m)
+            } 
+            for i in keys
+        ]
+        self.__y = mesh
+
+
+class DataProccessor:
+    def __init__(self, settings=DEFAULT_XCLOTH_SETTINGS) -> None:
+        self.__settings = settings
+        self.__TARGET_FUNC_MAP = {
+            "input": self.__process_poses,
+            "truth": self.__process_garments,
+        }
 
     def __process_poses(self, in_dir, out_dir, whitelist, no_replace, verbose, log_file, smpl_path):
         for garment_id in os.listdir(in_dir):
@@ -80,7 +182,6 @@ class DataLoader:
                 )
 
                 # save processed result
-                self.__registered_pose[name] = data
                 self.save(data, out_dir, name, verbose=verbose, log_file=log_file)
 
     def __process_garments(self, in_dir, out_dir, whitelist, no_replace, verbose, log_file, **kwargs):
@@ -103,7 +204,6 @@ class DataLoader:
                     )
 
                     # save processed result
-                    self.__registered_mesh[garment_id] = data
                     self.save(data, out_dir, garment_id, verbose=verbose, log_file=log_file)
 
                     break
@@ -137,88 +237,91 @@ class DataLoader:
             log_file.write(f"{name}\n")
             log_file.flush()
 
-    def load_all(self, root_dir, pose_dir="pose", mesh_dir="mesh", **kwargs):
-        self.load_dir(root_dir, pose_dir, self.__registered_pose, **kwargs)
-        self.load_dir(root_dir, mesh_dir, self.__registered_mesh, **kwargs)
+"""
+deprecated
+"""
+    # def load_all(self, root_dir, pose_dir="pose", mesh_dir="mesh", **kwargs):
+    #     self.load_dir(root_dir, pose_dir, self.__registered_pose, **kwargs)
+    #     self.load_dir(root_dir, mesh_dir, self.__registered_mesh, **kwargs)
 
-    @staticmethod
-    def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
-        """
-        load pose peelmaps, which is a list of dict of H x W matrix
+    # @staticmethod
+    # def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
+    #     """
+    #     load pose peelmaps, which is a list of dict of H x W matrix
 
-        the data should be store as root_dir/sub_dir/name.pkl
-        """
-        for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
-            name = filename.replace('\\', '/').split('/')[-1][:-4]
+    #     the data should be store as root_dir/sub_dir/name.pkl
+    #     """
+    #     for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
+    #         name = filename.replace('\\', '/').split('/')[-1][:-4]
 
-            if mask is not None:
-                if excld and name in mask: continue
-                if not excld and name not in mask: continue
+    #         if mask is not None:
+    #             if excld and name in mask: continue
+    #             if not excld and name not in mask: continue
 
-            with open(filename, "rb") as file:
-                data = pickle.load(file)
-                target[name] = data
+    #         with open(filename, "rb") as file:
+    #             data = pickle.load(file)
+    #             target[name] = data
 
-    def make_tensors(self, batch):
-        """
-        tranform the data into tensors of dimension N x B x P x C x H x W
+    # def make_tensors(self, batch):
+    #     """
+    #     tranform the data into tensors of dimension N x B x P x C x H x W
 
-        only data with both pose and mesh will be transformed
+    #     only data with both pose and mesh will be transformed
         
-        N: total number of data
-        B: batch size
-        P: number of peeled layers
+    #     N: total number of data
+    #     B: batch size
+    #     P: number of peeled layers
 
-        @return: pose, depth, norm, rgb
-        """
-        keys = self.__registered_pose.keys() & self.__registered_mesh.keys()
+    #     @return: pose, depth, norm, rgb
+    #     """
+    #     keys = self.__registered_pose.keys() & self.__registered_mesh.keys()
 
-        pose = np.stack([np.stack(self.__registered_pose[i]) for i in keys])
-        pose = torch.from_numpy(pose).reshape(-1, batch, *pose.shape[1:])
+    #     pose = np.stack([np.stack(self.__registered_pose[i]) for i in keys])
+    #     pose = torch.from_numpy(pose).reshape(-1, batch, *pose.shape[1:])
         
-        mesh = [
-            (
-                np.moveaxis((m := self.__registered_mesh[i]).img, -1, 0),
-                np.stack(m.peelmap_depth), 
-                np.stack(m.peelmap_norm), 
-                np.stack(m.peelmap_rgb)
-            ) 
-                for i in keys
-        ]
-        mesh = zip(*mesh)
-        mesh = [torch.from_numpy((tmp := np.stack(i))).reshape(-1, batch, *tmp.shape[1:]) for i in mesh]
+    #     mesh = [
+    #         (
+    #             np.moveaxis((m := self.__registered_mesh[i]).img, -1, 0),
+    #             np.stack(m.peelmap_depth), 
+    #             np.stack(m.peelmap_norm), 
+    #             np.stack(m.peelmap_rgb)
+    #         ) 
+    #             for i in keys
+    #     ]
+    #     mesh = zip(*mesh)
+    #     mesh = [torch.from_numpy((tmp := np.stack(i))).reshape(-1, batch, *tmp.shape[1:]) for i in mesh]
 
-        return pose, *mesh
+    #     return pose, *mesh
 
-    def make_Xy(self, pose, img, depth, norm, rgb, 
-                scale_rgb=True, 
-                cuda=True, 
-                dtype=torch.float32, 
-                depth_offset=0.):
-        """
-        @param: pose: N x B x P x H x W
-        @param: img: N x B x 3 x H x W
-        @param: depth: N x B x P x H x W
-        @param: norm: N x B x P x 3 x H x W
-        @param: rgb: N x B x P x 3 x H x W
+    # def make_Xy(self, pose, img, depth, norm, rgb, 
+    #             scale_rgb=True, 
+    #             cuda=True, 
+    #             dtype=torch.float32, 
+    #             depth_offset=0.):
+    #     """
+    #     @param: pose: N x B x P x H x W
+    #     @param: img: N x B x 3 x H x W
+    #     @param: depth: N x B x P x H x W
+    #     @param: norm: N x B x P x 3 x H x W
+    #     @param: rgb: N x B x P x 3 x H x W
 
-        @return: (X, y)
+    #     @return: (X, y)
 
-        X: N x B x (3 + P) x H x W
-        y: N x B x P x (1 + 3 + 3) x H x W
-        """
-        if scale_rgb:
-            img = img / 255
-            rgb = rgb / 255
+    #     X: N x B x (3 + P) x H x W
+    #     y: N x B x P x (1 + 3 + 3) x H x W
+    #     """
+    #     if scale_rgb:
+    #         img = img / 255
+    #         rgb = rgb / 255
 
-        identity = lambda x: x.to(dtype=dtype).cuda() if cuda else x.to(dtype=dtype)
+    #     identity = lambda x: x.to(dtype=dtype).cuda() if cuda else x.to(dtype=dtype)
 
-        pose[pose != 0] += depth_offset
-        X = identity(torch.concatenate([img, pose], dim=2))
+    #     pose[pose != 0] += depth_offset
+    #     X = identity(torch.concatenate([img, pose], dim=2))
 
-        depth[depth != 0] += depth_offset
-        return X, {
-            "Depth": identity(depth).unsqueeze(dim=3),
-            "Norm": identity(norm),
-            "RGB": identity(rgb)[:, :, 1:]
-        }
+    #     depth[depth != 0] += depth_offset
+    #     return X, {
+    #         "Depth": identity(depth).unsqueeze(dim=3),
+    #         "Norm": identity(norm),
+    #         "RGB": identity(rgb)[:, :, 1:]
+    #     }

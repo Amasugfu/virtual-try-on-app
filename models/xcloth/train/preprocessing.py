@@ -4,7 +4,8 @@ import trimesh
 
 from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS
 
-from typing import Tuple, Any
+from typing import Tuple, Any, List, Dict
+from numpy import ndarray
 
 import pyrender
 from PIL import Image
@@ -89,7 +90,7 @@ def make_normal_peelmap(face_ids, mesh,
 def make_peelmaps(peelmaps,
                   mesh,
                   dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w),
-                  target=["depth, norm, rgb"]):
+                  target=["depth, norm, rgb"]) -> Dict[str, List[ndarray]]:
     pm = {
        t: [] for t in target 
     }
