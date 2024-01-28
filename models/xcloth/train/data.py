@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from typing import List, Tuple, Any, Dict
+from typing import List, Tuple, Any, Dict, Set
 from trimesh import Trimesh
 
 from .preprocessing import process_garments, process_poses
@@ -24,7 +24,7 @@ def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
     @param: mask: white/blacklist
     @param: exclud: `True` if the mask is a blacklist and `False` if the mask is whitelist
     """
-    for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
+    for filename in glob.iglob(f"{root_dir}/{sub_dir}/*-1.pkl"):
         name = filename.replace('\\', '/').split('/')[-1][:-4]
 
         if mask is not None:
@@ -32,9 +32,7 @@ def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
                 if name in mask: continue
             elif name not in mask: continue
 
-        with open(filename, "rb") as file:
-            data = pickle.load(file)
-            target[name] = data
+        target[name] = filename
 
 
 @dataclass
@@ -51,33 +49,41 @@ class MeshDataSet(Dataset):
     def __init__(self, 
                  root_dir: str, 
                  pose_dir: str = "pose", 
-                 mesh_dir: str = "mesh", 
-                 mask=None, excld=True):
+                 mesh_dir: str = "mesh",
+                 mask: Set[str]|None = None, 
+                 excld: bool = True,
+                 scale_rgb: bool = True, 
+                 dtype=torch.float32, 
+                 depth_offset: float = 0.,):
         """
         @param: root_dir: path to the root directory.
         @param: pose_dir: name of the directory storing processed pose pickles.
         @param: mesh_dir: name of the directory storing processed mesh pickles.
         @param: mask: white/blacklist
         @param: exclud: `True` if the mask is a blacklist and `False` if the mask is whitelist
+
+        @param: scale_rgb: if `True`, transform rgb to range of [0, 1]
         """
         self.__root_dir = root_dir
         self.__pose_dir = pose_dir
         self.__mesh_dir = mesh_dir
         self.__mask = mask
         self.__excld = excld
+        self.__scale_rgb = scale_rgb
+        self.__dtype = dtype
+        self.__depth_offset = depth_offset
 
         self.__registered_pose = {}
         self.__registered_mesh = {}
         self.reload_all()
-
-        self.__X = None
-        self.__y = None
+        self.__common_keys = list(self.__registered_pose.keys() & self.__registered_mesh.keys())
 
     def __len__(self):
-        return len(self.__X) if self.__X is not None else 0
+        return len(self.__common_keys)
     
     def __getitem__(self, index) -> Any:
-        return self.__X[index], self.__y[index]["Depth"], self.__y[index]["Norm"], self.__y[index]["RGB"]
+        X, y = self.make_Xy(self.__common_keys[index])
+        return X, y["Depth"], y["Norm"], y["RGB"]
 
     def reload_all(self):
         load_dir(self.__root_dir, self.__pose_dir, self.__registered_pose, self.__mask, self.__excld)
@@ -93,17 +99,14 @@ class MeshDataSet(Dataset):
             "extra mesh": self.__registered_mesh.keys() - self.__registered_pose.keys(),
         }
 
-    def make_Xy(self,
-                scale_rgb=True, 
-                dtype=torch.float32, 
-                depth_offset=0.):
+    def make_Xy(self, name):
         """
         tranform the data into tensors which can be fed directly to the model
 
         only data with both pose and mesh will be transformed
 
-        X: N x (3 + P) x H x W
-        y: N x Dict[
+        X: (3 + P) x H x W
+        y: Dict[
             depth[P x 1 x H x W], 
             norm[P x 3 x H x W], 
             rgb[P x 3 x H x W]
@@ -113,44 +116,41 @@ class MeshDataSet(Dataset):
         N: total number of data
         P: number of peeled layers
         """
-        # ensure every pose has its corresponding mesh
-        keys = list(self.__registered_pose.keys() & self.__registered_mesh.keys())
+        with open(self.__registered_pose[name], "rb") as f:
+            p = pickle.load(f)
+        with open(self.__registered_mesh[name], "rb") as f:
+            m = pickle.load(f)
 
-        # mnake input
-        pose = np.stack([np.stack(self.__registered_pose[i]) for i in keys])    # N x P x H x W
-        pose = torch.from_numpy(pose)
+        # make input
+        pose = torch.tensor(p)
 
-        pose[pose != 0] += depth_offset
+        pose[pose != 0] += self.__depth_offset
         
-        img = np.stack([np.moveaxis(self.__registered_mesh[i].img, -1, 0) for i in keys])   # N x 3 x H x W
-        if scale_rgb: img = img / 255
+        img = np.moveaxis(m.img, -1, 0)
+        if self.__scale_rgb: img = img / 255
 
-        self.__X = torch.concatenate([torch.from_numpy(img), pose], dim=1).to(dtype=dtype)
+        X = torch.concatenate([torch.from_numpy(img), pose], dim=0).to(dtype=self.__dtype)
         
         # make truth
         def __make_depth(__m):
-            __depth = torch.from_numpy(np.stack(__m.peelmap_depth)).to(dtype=dtype)
-            __depth[__depth != 0] += depth_offset
+            __depth = torch.tensor(__m.peelmap_depth).to(dtype=self.__dtype)
+            __depth[__depth != 0] += self.__depth_offset
             return __depth.unsqueeze(dim=1)
 
         def __make_norm(__m):
-            __norm = torch.from_numpy(np.stack(__m.peelmap_norm)).to(dtype=dtype)
+            __norm = torch.tensor(__m.peelmap_norm).to(dtype=self.__dtype)
             return __norm
 
         def __make_rgb(__m):
-            __rgb = torch.from_numpy(np.stack(__m.peelmap_rgb)).to(dtype=dtype)[1:]
-            if scale_rgb: __rgb = __rgb / 255
+            __rgb = torch.tensor(__m.peelmap_rgb).to(dtype=self.__dtype)[1:]
+            if self.__scale_rgb: __rgb = __rgb / 255
             return __rgb
 
-        mesh = [
-            {
-                "Depth": __make_depth(m := self.__registered_mesh[i]), 
+        return X, {
+                "Depth": __make_depth(m), 
                 "Norm": __make_norm(m), 
                 "RGB": __make_rgb(m)
             } 
-            for i in keys
-        ]
-        self.__y = mesh
 
 
 class DataProccessor:
