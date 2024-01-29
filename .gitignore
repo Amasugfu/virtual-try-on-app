@@ -9,5 +9,7 @@ models/smpl
 __pycache__/
 *.py[cod]
 
+*.pt
+models
 
 no_git_*
