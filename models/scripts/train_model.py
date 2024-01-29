@@ -6,33 +6,57 @@ m_path = dirname(abspath(join(__file__, "..")))
 if m_path not in sys.path:
     sys.path.append(m_path)
 
+import logging
+from logging import StreamHandler, FileHandler, Formatter
+
+def setup_logger(args):
+    logger = logging.getLogger("xcloth")
+    logger.setLevel(logging.DEBUG)
+
+    fmt = "[%(asctime)s] %(message)s"
+    formatter = Formatter(fmt=fmt)
+    if args.verbose: 
+        handler = StreamHandler()
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+
+    if args.log_file is not None: 
+        handler = FileHandler(args.log_file)
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    
+    return logger
+
 
 def main(args):
-    if args.verbose: print("[INFO] importing dependencies")
+    logger = setup_logger(args)
+
+    logger.info("importing dependencies...")
+
     from xcloth.train.data import MeshDataSet
     from xcloth.production import XCloth
     from xcloth.train import train_model
-    if args.verbose: print("[INFO] Done", end="\n\n")
+    
+    logger.info("done")
 
-    if args.verbose: print("[INFO] loading dataset")
+    logger.info("loading dataset...")
     data_path = args.path
     mask = None if args.mask is None else set(args.mask)
     dataset = MeshDataSet(root_dir=data_path, mask=mask, excld=args.exclude)
-    dataset.make_Xy(depth_offset=.5)
 
-    if args.verbose: 
-        print(dataset.stats)
-        print("[INFO] Done", end="\n\n")
-        print("[INFO] training model")
+    logger.info(dataset.stats)
+    logger.info("done")
+
+    logger.info("training model...")
 
     model = XCloth().cuda()
     n_epoch = int(args.n_epoch)
-    lr = float(args.lr),
+    lr = float(args.lr)
 
     if args.recover:
         n = model.load(args.checkpoint)
         n_epoch -= n
-        lr *= 0.95**(n)
+        lr *= 0.95**n
 
     train_model(
         model,
@@ -44,11 +68,11 @@ def main(args):
         weight=[1., 0.1, 1., 0.05, 1, 0.5],
         separate_bg=True,
         params_path=args.checkpoint,
-        verbose=args.verbose,
-        plot_path=args.plot_path
+        plot_path=args.plot_path,
+        logger=logger,
     )
        
-    if args.verbose: print("[INFO] Done", end="\n\n")
+    logger.info("done")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -61,6 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--exclude", nargs="?", default=False, const=True)
     parser.add_argument("-v", "--verbose", nargs="?", default=False, const=True)
     parser.add_argument("-r", "--recover", nargs="?", default=False, const=True)
+    parser.add_argument("--log_file")
     parser.add_argument("--plot_path")
     args = parser.parse_args()
 

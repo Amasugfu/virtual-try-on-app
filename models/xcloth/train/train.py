@@ -5,6 +5,7 @@ import numpy as np
 
 from matplotlib import pyplot as plt
 from typing import Type, List, Dict, Any
+from logging import Logger
 
 from ..production import XCloth
 from ..train.data import MeshDataSet
@@ -80,7 +81,7 @@ def train_model(
         optimizer: Type[torch.optim.Optimizer] = torch.optim.Adam,
         lr: float = 5e-4,
         weight: List[float] = [1., 0.1, 1., 0.05],
-        verbose: bool = False,
+        logger: Logger|None = None,
         plot_path: str|None = None,
         reduction: str|None = "sum",
         params_path: str|None = None,
@@ -115,10 +116,10 @@ def train_model(
         )
 
         loss_hist.append(loss)
-        if verbose: print(f"epoch {epoch}: loss: {loss}")
+        logger.info(f"epoch {epoch}: loss: {loss}")
 
         if params_path is not None:
-            model.save(params_path, epoch)
+            model.save(params_path, epoch, loss_hist)
             
         scheduler.step()
 

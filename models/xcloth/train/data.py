@@ -122,7 +122,7 @@ class MeshDataSet(Dataset):
             m = pickle.load(f)
 
         # make input
-        pose = torch.tensor(p)
+        pose = torch.tensor(np.stack(p))
 
         pose[pose != 0] += self.__depth_offset
         
@@ -133,16 +133,16 @@ class MeshDataSet(Dataset):
         
         # make truth
         def __make_depth(__m):
-            __depth = torch.tensor(__m.peelmap_depth).to(dtype=self.__dtype)
+            __depth = torch.tensor(np.stack(__m.peelmap_depth)).to(dtype=self.__dtype)
             __depth[__depth != 0] += self.__depth_offset
             return __depth.unsqueeze(dim=1)
 
         def __make_norm(__m):
-            __norm = torch.tensor(__m.peelmap_norm).to(dtype=self.__dtype)
+            __norm = torch.tensor(np.stack(__m.peelmap_norm)).to(dtype=self.__dtype)
             return __norm
 
         def __make_rgb(__m):
-            __rgb = torch.tensor(__m.peelmap_rgb).to(dtype=self.__dtype)[1:]
+            __rgb = torch.tensor(np.stack(__m.peelmap_rgb)).to(dtype=self.__dtype)[1:]
             if self.__scale_rgb: __rgb = __rgb / 255
             return __rgb
 

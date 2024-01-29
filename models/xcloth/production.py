@@ -42,13 +42,15 @@ class XCloth(nn.Module):
         model = GarmentModel3D(*self(x_img))
         return model
     
-    def save(self, path, n):
+    def save(self, path, n=None, loss_hist=None):
         torch.save({
             "epoch": n,
-            "state": self.state_dict()
+            "loss_hist": loss_hist,
+            "state": self.state_dict(),
         }, path)
 
     def load(self, path):
         chkpt = torch.load(path)
         self.load_state_dict(chkpt["state"])
-        return chkpt["epoch"]
+        return chkpt["epoch"], chkpt["loss_hist"]
+    
