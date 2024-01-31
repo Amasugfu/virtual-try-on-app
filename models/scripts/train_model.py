@@ -42,7 +42,7 @@ def main(args):
     logger.info("loading dataset...")
     data_path = args.path
     mask = None if args.mask is None else set(args.mask)
-    dataset = MeshDataSet(root_dir=data_path, mask=mask, excld=args.exclude)
+    dataset = MeshDataSet(root_dir=data_path, mask=mask, excld=args.exclude, depth_offset=float(args.depth))
 
     logger.info(dataset.stats)
     logger.info("done")
@@ -78,6 +78,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--path", required=True)
     parser.add_argument("-c", "--checkpoint")
+    parser.add_argument("-d", "--depth")
     parser.add_argument("-n", "--n_epoch", default=20)
     parser.add_argument("-b", "--batch_size", default=4)
     parser.add_argument("-l", "--lr", default=0.0005)
