@@ -77,6 +77,7 @@ def train_model(
         model: XCloth, 
         dataset: MeshDataSet,
         batch_size: int = 4,
+        start_epoch: int = 1,
         n_epoch: int = 20,
         optimizer: Type[torch.optim.Optimizer] = torch.optim.Adam,
         lr: float = 5e-4,
@@ -105,7 +106,7 @@ def train_model(
     dataloader = DataLoader(dataset, batch_size=batch_size, pin_memory=True)
     
     model.train()
-    for epoch in range(1, n_epoch + 1):
+    for epoch in range(start_epoch, n_epoch + 1):
         loss = __epoch(
             model,
             dataloader,
@@ -124,8 +125,8 @@ def train_model(
         scheduler.step()
 
     if plot_path is not None:
-        plt.plot(range(1, n_epoch + 1), loss_hist)
-        plt.xticks(range(1, n_epoch + 1))
+        plt.plot(range(start_epoch, n_epoch + 1), loss_hist)
+        plt.xticks(range(start_epoch, n_epoch + 1))
         plt.ylabel("loss")
         plt.xlabel("epoch")
         plt.savefig(plot_path)

@@ -36,6 +36,8 @@ def main(args):
     from xcloth.train.data import MeshDataSet
     from xcloth.production import XCloth
     from xcloth.train import train_model
+    import torch
+    torch.manual_seed(0)
     
     logger.info("done")
 
@@ -43,8 +45,11 @@ def main(args):
     data_path = args.path
     mask = None if args.mask is None else set(args.mask)
     dataset = MeshDataSet(root_dir=data_path, mask=mask, excld=args.exclude, depth_offset=float(args.depth))
-
     logger.info(dataset.stats)
+    if args.split is not None:
+        frac = float(args.split)
+        dataset, test_dataset = torch.utils.data.random_split(dataset, [frac, 1 - frac])
+
     logger.info("done")
 
     logger.info("training model...")
@@ -53,26 +58,44 @@ def main(args):
     n_epoch = int(args.n_epoch)
     lr = float(args.lr)
 
+    n = 1
     if args.recover:
-        n = model.load(args.checkpoint)
-        n_epoch -= n
+        n, _ = model.load(args.checkpoint)
         lr *= 0.95**n
 
-    train_model(
-        model,
-        dataset,
-        batch_size=int(args.batch_size),
-        n_epoch=n_epoch,
-        lr=lr,
-        reduction="mean",
-        weight=[1., 0.1, 1., 0.05, 1, 0.5],
-        separate_bg=True,
-        params_path=args.checkpoint,
-        plot_path=args.plot_path,
-        logger=logger,
-    )
+    
+    if n < n_epoch:
+        train_model(
+            model,
+            dataset,
+            batch_size=int(args.batch_size),
+            start_epoch=n + 1,
+            n_epoch=n_epoch,
+            lr=lr,
+            reduction="mean",
+            weight=[1., 0.1, 1., 0.05, 1, 0.5],
+            separate_bg=True,
+            params_path=args.checkpoint,
+            plot_path=args.plot_path,
+            logger=logger,
+        )
        
     logger.info("done")
+
+    if args.test is not None:
+        logger.info("testing model...")
+        from xcloth.components.utils import GarmentModel3D
+        with torch.no_grad():
+            for idx, (x, _, _, _) in enumerate(test_dataset):
+                x = x.cuda()
+                r = model(x[:3], x[3:])
+                mesh = GarmentModel3D.from_tensor_dict(r, 1)
+                p = f"{args.test}/{idx}"
+                mesh[0].reconstruct(thres=0.25, depth_offset=float(args.depth), path=p)
+            logger.info(f"saving test data {idx} into {p}")
+
+        logger.info("done")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -86,6 +109,8 @@ if __name__ == "__main__":
     parser.add_argument("-e", "--exclude", nargs="?", default=False, const=True)
     parser.add_argument("-v", "--verbose", nargs="?", default=False, const=True)
     parser.add_argument("-r", "--recover", nargs="?", default=False, const=True)
+    parser.add_argument("-t", "--test")
+    parser.add_argument("-s", "--split")
     parser.add_argument("--log_file")
     parser.add_argument("--plot_path")
     args = parser.parse_args()
