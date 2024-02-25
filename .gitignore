@@ -5,11 +5,12 @@ models/DaNet-DensePose2SMPL
 models/PyMAF
 models/data
 models/smpl
+models/res
 
 __pycache__/
 *.py[cod]
 
 *.pt
-models
+
 
 no_git_*

@@ -91,7 +91,7 @@ def main(args):
                 r = model(x[:3], x[3:])
                 mesh = GarmentModel3D.from_tensor_dict(r, 1)
                 p = f"{args.test}/{idx}"
-                mesh[0].reconstruct(thres=0.25, depth_offset=float(args.depth), path=p)
+                mesh[0].backproject(thres=0.25, depth_offset=float(args.depth), path=p)
             logger.info(f"saving test data {idx} into {p}")
 
         logger.info("done")
