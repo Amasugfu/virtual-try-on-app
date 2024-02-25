@@ -66,6 +66,9 @@ def transform_coords_norm2real(
     for dim in range(coords.shape[-1]):
         real_coords[:, :, dim] = coords[:, :, dim] / sep[dim]
 
+    # swap (y, x) to (x, y)
+    real_coords[:, :, [0, 1]] = real_coords[:, :, [1, 0]]
+
     return real_coords, sep
 
 
