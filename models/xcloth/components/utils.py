@@ -7,6 +7,8 @@ import copy, os
 from dataclasses import dataclass
 from typing import Tuple, Any, List
 
+from itertools import product, combinations
+from collections import deque
 
 def create_idx_mat(size):
     """
@@ -72,33 +74,6 @@ def transform_coords_norm2real(
     return real_coords, sep
 
 
-def create_distance_filter(points, filter_obj, dist=0.1):
-    """
-    @param: filter_obj: the triangular mesh to compute the distance from
-    @param: dist: the max distance away from the `filter_obj`
-
-    @return: a filter masking only the vertices that is within the distance from the `filter_obj`
-    """
-    scene = o3d.t.geometry.RaycastingScene()
-    scene.add_triangles(mesh=filter_obj)
-
-    distance = scene.compute_distance(points)
-
-    return distance <= dist
-
-
-def filter_o3d_pcd(pcd, _filter):
-    _filter = _filter.numpy()
-    pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points)[_filter])
-    pcd.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[_filter])
-    pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[_filter])
-
-
-def filter_pcd(pcds, _filters):
-    for pcd, f in zip(pcds, _filters):
-        filter_o3d_pcd(pcd, f)
-
-
 def reconstruct_from_depth(pm_depth, thres, z, fov, depth_offset=0.):
     """
     reconstruct point cloud from depth peelmaps
@@ -127,37 +102,113 @@ def reconstruct_from_depth(pm_depth, thres, z, fov, depth_offset=0.):
         yield p, thres_mask
 
 
-def partial_mesh(pcds):
-    radii = [0.005, 0.01, 0.02, 0.04]
-    for pcd in pcds:
-        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-            pcd, o3d.utility.DoubleVector(radii))
-        yield mesh
+def create_distance_filter(points, filter_obj, u_dist=None, l_dist=None):
+    """
+    @param: filter_obj: the triangular mesh to compute the distance from
+    @param: dist: the max distance away from the `filter_obj`
+
+    @return: a filter masking only the vertices that is within the distance from the `filter_obj`
+    """
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh=o3d.t.geometry.TriangleMesh.from_legacy(filter_obj))
+
+    distance = scene.compute_distance(points)
+
+    f = True
+    
+    if u_dist is not None: f = (distance <= u_dist).logical_and(f)
+    if l_dist is not None: f = (distance >= l_dist).logical_and(f)
+
+    return f
 
 
-def poisson_surface_reconsturction(pcd, depth):
-    mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=depth)
+def filter_o3d_pcd(pcd, _filter):
+    _filter = _filter.numpy()
+    pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points)[_filter])
+    pcd.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[_filter])
+    pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[_filter])
+
+
+def filter_pcd(pcds, _filters):
+    for pcd, f in zip(pcds, _filters):
+        filter_o3d_pcd(pcd, f)
+
+
+def partial_mesh(pcd, mask, thres=0.025):
+    """
+    given grid:
+
+    [[0, 1],
+    
+     [2, 3]]
+
+    add [0, 1, 2] and [0, 2, 3] as faces if all elements are `True` in the mask
+    """
+        
+    faces = []
+    idx = np.empty_like(mask, dtype=int)
+    idx[mask] = np.arange(mask.sum())
+    
+    def __getitem(src, tup):
+        return src[tup[0], tup[1]]
+    
+    def __within_thres(i):
+        dist = [np.linalg.norm(pcd[a] - pcd[b]) for a, b in combinations(i, 2)]
+        return max(dist) <= thres
+
+    for row, col in zip(*np.where(mask)):
+        op = tuple(product((1, 0), repeat=2))
+
+        pool = [(row, col)]
+        for r_off, c_off in op[:-1]:
+            tmp = row + r_off, col + c_off
+            pool.append(tmp)
+
+        valid = [__getitem(mask, i) for i in pool]
+        indices = [__getitem(idx, i) for i in pool]
+
+        if not valid[1]: continue
+
+        if valid[-2] and __within_thres(tmp := indices[:-1]): 
+            faces.append(tmp)
+ 
+        if valid[-1] and __within_thres(tmp := [*indices[:2], indices[-1]]): 
+            faces.append(tmp)
+
+    return faces
+
+
+def create_mesh(pcd, faces):
+    mesh = o3d.geometry.TriangleMesh()
+    mesh.vertices = pcd.points
+    mesh.vertex_normals = pcd.normals
+    # mesh.vertex_colors = pcd.colors
+    mesh.triangles = o3d.utility.Vector3iVector(faces)
+    return mesh
+        
+
+def psr(pcd, depth):
+    mesh, _ = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=depth)
     return mesh
 
 
-def refine_geometry(pcds, depth, mode):
-    pcd = np.sum(pcds)
-    # pcd.orient_normals_consistent_tangent_plane(100)
+def refine_geometry(meshes, refine_depth, sampler_mesh, dilate_factor):
+    mesh = np.sum(meshes)
 
-    meshes = partial_mesh(pcds)
+    # sample points on PSR
+    pcd = sampler_mesh.sample_points_poisson_disk(
+        int(np.asarray(mesh.vertices).size * dilate_factor)
+    )
+    psr_filter = create_distance_filter(
+        np.asarray(pcd.points, dtype=np.float32), 
+        mesh, 
+        l_dist=0.025,
+        u_dist=0.1
+    )
+    filter_o3d_pcd(pcd, psr_filter.logical_not())
 
-    if mode == "poisson":
-        mesh, _ = poisson_surface_reconsturction(pcd, depth)
-    elif mode == "ballpivoting":
-        # estimate radius for rolling ball
-        distances = pcd.compute_nearest_neighbor_distance()
-        avg_dist = np.mean(distances)
-        radius = 1.5 * avg_dist   
+    o3d.visualization.draw_geometries([pcd])
 
-        mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(
-           pcd,
-           o3d.utility.DoubleVector([radius, radius * 2]))
-        
     return mesh
 
 
@@ -187,7 +238,7 @@ class GarmentModel3D:
     mask: Any = None
     camera_settings: CameraSettings = CameraSettings()
     
-    faces: List[Tuple[float, float, float]]|None = None
+    pcd_masks: List[Any]|None = None
     pcds: List[o3d.geometry.PointCloud]|None = None
 
     @classmethod
@@ -218,14 +269,35 @@ class GarmentModel3D:
             **kwargs
         )
     
-    def filter_pcd(self, dist=0.01):
+    def denoise(self, dist: float = 0.01, path: str|None = None):
+        """
+        remove outliners using low-poly reconstruction.
+        """
         if self.pcds is None: return
-        filter_obj, _ = poisson_surface_reconsturction(np.sum(self.pcds), depth=5)
-        filter_obj = o3d.t.geometry.TriangleMesh.from_legacy(filter_obj)
-        pt_filter = [create_distance_filter(pcd, filter_obj, dist) for pcd in self.np_pcds]
-        filter_pcd(self.pcds, pt_filter)
 
-    def to_obj(self, depth=9, path: str|None = None, mode="poisson", dist=0.01):
+        # filter pcd
+        filter_obj = psr(np.sum(self.pcds), depth=5)
+        pt_filters = [create_distance_filter(pcd, filter_obj, u_dist=dist) for pcd in self.np_pcds]
+        filter_pcd(self.pcds, pt_filters)
+
+        # update mask
+        for mask, f in zip(self.pcd_masks, pt_filters):
+            mask[mask] = f
+
+        if path is not None:
+            o3d.io.write_triangle_mesh(os.path.join(path, "low_poly.obj"), filter_obj)
+
+        return filter_obj
+
+    def to_obj(self, 
+               refine_depth: int = 9, 
+               face_dist: float = 0.025, 
+               path: str|None = None,
+               smooth_iter: int = 1,
+               lambda_filter: float = 0.5,
+               mu: float = -0.53,
+               sampler_mesh: o3d.geometry.TriangleMesh|None = None,
+               sampler_dilation: float = 0.5):
         """
         parse to an OBJ 3D model.
 
@@ -237,10 +309,21 @@ class GarmentModel3D:
         """
         if self.pcds is None: return
 
-        self.filter_pcd(dist=dist)
+        # partial mesh 
+        faces = [partial_mesh(pcd, mask, face_dist) for pcd, mask in zip(self.np_pcds, self.pcd_masks)]
+        meshes = [create_mesh(pcd, faces_) for pcd, faces_ in zip(self.pcds, faces)]
 
-        mesh = refine_geometry(self.pcds, depth=depth, mode=mode)
-        mesh = map_texture(mesh)
+        # refine geometry
+        mesh = refine_geometry(
+            meshes, 
+            refine_depth, 
+            sampler_mesh if sampler_mesh is not None else psr(np.sum(self.pcds), depth=5),
+            sampler_dilation
+        )
+        mesh = mesh.filter_smooth_taubin(smooth_iter, lambda_filter, mu)
+
+        # texture inpainting
+        # mesh = map_texture(mesh)
 
         if path is not None:
             o3d.io.write_triangle_mesh(path, mesh)
@@ -253,7 +336,11 @@ class GarmentModel3D:
         """
         pass
 
-    def backproject(self, thres: float = 5e-5, depth_offset=0., path: str|None = None):
+    def backproject(self, 
+                    thres: float = 5e-5, 
+                    depth_offset: float = 0., 
+                    denoise_dist: float|None = 0.01, 
+                    path: str|None = None):
         """
         reconstruct the model as a 3d meshes using the peelmaps.
         texture is also generated.
@@ -264,6 +351,7 @@ class GarmentModel3D:
         @return: point cloud of each peeled layer
         """
         pcds = []
+        pcd_masks = []
 
         for i, (pcd, thres_mask) in enumerate(reconstruct_from_depth(self.pm_depth.squeeze(), thres, self.camera_settings.z, self.camera_settings.fov, depth_offset=depth_offset)):
             norm = np.moveaxis(self.pm_norm[i], 0, -1)
@@ -281,12 +369,18 @@ class GarmentModel3D:
             reconstructed_pcd.normals = o3d.utility.Vector3dVector(norm[thres_mask])
             reconstructed_pcd.colors = o3d.utility.Vector3dVector(rgb[thres_mask])
 
-            # create faces
-            
             pcds.append(reconstructed_pcd)
+            pcd_masks.append(thres_mask)
 
         self.pcds = pcds
+        self.pcd_masks = pcd_masks
+
+        # denoise
+        lowpoly = self.denoise(denoise_dist, path) if denoise_dist is not None else None
+
         self.save_pcd(path)
+
+        return lowpoly
 
     def save_pcd(self, path: str):
         if path is None: return

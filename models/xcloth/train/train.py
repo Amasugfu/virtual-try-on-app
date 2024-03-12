@@ -64,13 +64,13 @@ def __epoch(
 
         # update weights per batch
         loss = weight[0]*loss_d + weight[2]*loss_norm + weight[3]*loss_rgb
-        loss_hist.append(loss.item())       
+        loss_hist.append([loss.item(), loss_d, loss_norm, loss_rgb])    
         loss.backward()
         optimizer.step()
 
         torch.cuda.empty_cache()
 
-    return np.mean(loss_hist)
+    return np.mean(loss_hist, axis=0)
 
 
 def train_model(
@@ -81,7 +81,7 @@ def train_model(
         n_epoch: int = 20,
         optimizer: Type[torch.optim.Optimizer] = torch.optim.Adam,
         lr: float = 5e-4,
-        weight: List[float] = [1., 0.1, 1., 0.05],
+        weight: List[float] = [1., 0.1, 1., 1.],
         logger: Logger|None = None,
         plot_path: str|None = None,
         reduction: str|None = "sum",
