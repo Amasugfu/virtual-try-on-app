@@ -3,7 +3,7 @@ from torch import nn
 from .settings.model_settings import xClothSettings, DEFAULT_XCLOTH_SETTINGS
 from .components.encoder import Encoder
 from .components.decoder import DepthDecoder, NormDecoder, RGBDecoder
-from .components.utils import GarmentModel3D
+from .components.reconstruct import GarmentModel3D
 
 class XCloth(nn.Module):
     def __init__(self, settings: xClothSettings = DEFAULT_XCLOTH_SETTINGS) -> None:
