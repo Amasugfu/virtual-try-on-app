@@ -30,6 +30,14 @@ def transform_coords_pix2norm(size, idx_mat=None):
     return idx_mat
 
 
+def compute_pixsep(s, fov, z):
+    """
+    compute real distance between each pixel.
+    """
+    a = z*np.tan(fov / 2)
+    return 2*a / s
+
+
 def transform_coords_norm2real(
         size: int|Tuple[int, int], 
         coords: Any, 
@@ -47,18 +55,12 @@ def transform_coords_norm2real(
     @return: (real world 3D coordinates in matrix of dimension of N x 2, real world distance per pixel)
     """
     real_coords = np.zeros_like(coords, dtype=np.float64)
-    def __compute_pixsep(__s, __fov):
-        """
-        compute real distance between each pixel.
-        """
-        a = z*np.tan(__fov / 2)
-        return 2*a / __s
 
     if type(fov) == tuple:
         assert len(size) == len(fov)
-        sep = [__compute_pixsep(s, f) for s, f in zip(size, fov)]
+        sep = [compute_pixsep(s, f, z) for s, f in zip(size, fov)]
     else:
-        sep = __compute_pixsep(size[0], fov)
+        sep = compute_pixsep(size[0], fov, z)
         sep = [sep for _ in range(len(size))]
 
     for dim in range(coords.shape[-1]):
@@ -91,10 +93,14 @@ def create_distance_filter(points, filter_obj, u_dist=None, l_dist=None):
 
 
 def filter_o3d_pcd(pcd, _filter):
-    _filter = _filter.numpy()
+    if type(_filter) != np.ndarray: 
+        _filter = _filter.numpy()
+        
     pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points)[_filter])
-    pcd.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[_filter])
-    pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[_filter])
+    if pcd.normals is not None: 
+        pcd.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[_filter])
+    if pcd.colors is not None:
+        pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[_filter])
 
 
 def filter_pcd(pcds, _filters):
@@ -122,13 +128,23 @@ def find_border(mat):
     return generic_filter(mat, __replace_non_border, 3)
 
 
-def create_mesh(pcd, faces):
+def create_o3d_mesh(pcd, faces):
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = pcd.points
     mesh.vertex_normals = pcd.normals
     # mesh.vertex_colors = pcd.colors
     mesh.triangles = o3d.utility.Vector3iVector(faces)
     return mesh
+
+
+def create_o3d_pcd(points, colors=None, normals=None):
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+    if colors is not None:
+        pcd.colors = o3d.utility.Vector3dVector(colors)
+    if normals is not None:
+        pcd.normals = o3d.utility.Vector3dVector(normals)
+    return pcd
         
 
 def psr(pcd, depth):

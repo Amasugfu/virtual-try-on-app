@@ -8,8 +8,8 @@ from typing import Tuple, Any, List
 from itertools import product, combinations
 
 from .utils import (
-    create_idx_mat, transform_coords_pix2norm, transform_coords_norm2real, psr,
-    create_mesh, create_distance_filter, filter_o3d_pcd, filter_pcd, find_border
+    create_idx_mat, transform_coords_pix2norm, transform_coords_norm2real, psr, compute_pixsep,
+    create_o3d_mesh, create_o3d_pcd, create_distance_filter, filter_o3d_pcd, filter_pcd, find_border
 )
 
 
@@ -85,18 +85,24 @@ def partial_mesh(pcd, mask, thres=0.025):
         if valid[-1] and __within_thres(tmp := [*indices[:2], indices[-1]]): 
             faces.append(tmp)
 
+    # for each vertex not selected, generate a degenerate face
+    degen_faces = np.repeat(np.delete(np.arange(mask.sum()), np.unique(faces))[:, np.newaxis], 3, axis=1)
+    faces = np.concatenate([np.asarray(faces), degen_faces])
+
     return faces
 
 
-def refine_geometry(meshes, borderline, sampler_mesh, dilate_factor):
+def refine_geometry(meshes, borderline, dist, sampler_mesh, dilate_factor):
     mesh = np.sum(meshes)
+    borderline = create_o3d_pcd(borderline)
 
     # sample points on PSR
     pcd = sampler_mesh.sample_points_poisson_disk(
         int(np.asarray(mesh.vertices).size * dilate_factor)
     )
 
-    pcd.compute_point_cloud_distance(bo)
+    distance = pcd.compute_point_cloud_distance(borderline)
+    filter_o3d_pcd(pcd, np.asarray(distance) < dist)
 
     # psr_filter = create_distance_filter(
     #     np.asarray(pcd.points, dtype=np.float32), 
@@ -106,7 +112,7 @@ def refine_geometry(meshes, borderline, sampler_mesh, dilate_factor):
     # )
     # filter_o3d_pcd(pcd, psr_filter.logical_not())
 
-    o3d.visualization.draw_geometries([pcd, borderline])
+    o3d.visualization.draw_geometries([pcd, borderline, mesh])
     # exit()
 
     return mesh
@@ -191,19 +197,20 @@ class GarmentModel3D:
         return filter_obj
 
     def to_obj(self, 
-               refine_depth: int = 5, 
                face_dist: float = 0.025, 
                path: str|None = None,
                smooth_iter: int = 1,
                lambda_filter: float = 0.5,
                mu: float = -0.53,
+               refine_dist: float = 0.01,
+               sampler_depth: int = 5, 
                sampler_mesh: o3d.geometry.TriangleMesh|None = None,
                sampler_dilation: float = 0.5):
         """
         parse to an OBJ 3D model.
 
         @param: mode: `"poisson" | "ballpivoting"`
-        @param: depth: poisson surface reconstruction depth
+        @param: refine_depth: poisson surface reconstruction depth
         @param: dist: the max distance the vertices are away from the low-poly reconstruction. used for filtering out outliners
 
         @return: triange mesh with texture
@@ -212,7 +219,7 @@ class GarmentModel3D:
 
         # partial mesh 
         faces = [partial_mesh(pcd, mask, face_dist) for pcd, mask in zip(self.np_pcds, self.pcd_masks)]
-        meshes = [create_mesh(pcd, faces_) for pcd, faces_ in zip(self.pcds, faces)]
+        meshes = [create_o3d_mesh(pcd, faces_) for pcd, faces_ in zip(self.pcds, faces)]
 
         # compute borders coordinates
         borderline = [
@@ -221,23 +228,12 @@ class GarmentModel3D:
         ]
         borderline = np.concatenate(borderline)
 
-        # debug code
-        # pcd = np.sum(self.pcds)
-        # borderline = o3d.geometry.PointCloud()
-        # borderline.points = o3d.utility.Vector3dVector()
-
-        # o3d.visualization.draw_geometries([np.sum(meshes), borderline])
-        
-        
-        # pix_borders = np.vstack([np.swapaxes(np.asarray(np.where(b)), 0, 1) for b in self.borders]).reshape(1, -1, 2)
-        # norm_borders = transform_coords_pix2norm(size, pix_borders)
-        # real_borders, sep = transform_coords_norm2real(size, norm_borders, self.camera_settings.z, self.camera_settings.fov)
-
         # refine geometry
         mesh = refine_geometry(
             meshes, 
             borderline, 
-            sampler_mesh if sampler_mesh is not None else psr(np.sum(self.pcds), depth=refine_depth),
+            refine_dist,
+            sampler_mesh if sampler_mesh is not None else psr(np.sum(self.pcds), depth=sampler_depth),
             sampler_dilation
         )
         mesh = mesh.filter_smooth_taubin(smooth_iter, lambda_filter, mu)
@@ -284,12 +280,7 @@ class GarmentModel3D:
             if thres_mask.sum() == 0:
                 break
 
-            reconstructed_pcd = o3d.geometry.PointCloud()
-            reconstructed_pcd.points = o3d.utility.Vector3dVector(pcd[thres_mask])
-            reconstructed_pcd.normals = o3d.utility.Vector3dVector(norm[thres_mask])
-            reconstructed_pcd.colors = o3d.utility.Vector3dVector(rgb[thres_mask])
-
-            pcds.append(reconstructed_pcd)
+            pcds.append(create_o3d_pcd(pcd[thres_mask], normals=norm[thres_mask], colors=rgb[thres_mask]))
             pcd_masks.append(thres_mask)
 
         self.pcds = pcds
