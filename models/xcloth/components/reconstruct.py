@@ -9,7 +9,7 @@ from itertools import product, combinations
 
 from .utils import (
     create_idx_mat, transform_coords_pix2norm, transform_coords_norm2real, psr, compute_pixsep,
-    create_o3d_mesh, create_o3d_pcd, create_distance_filter, filter_o3d_pcd, filter_pcd, find_border
+    create_o3d_mesh, create_o3d_pcd, create_distance_filter, filter_o3d_pcd, find_border
 )
 
 
@@ -85,24 +85,39 @@ def partial_mesh(pcd, mask, thres=0.025):
         if valid[-1] and __within_thres(tmp := [*indices[:2], indices[-1]]): 
             faces.append(tmp)
 
-    # for each vertex not selected, generate a degenerate face
-    degen_faces = np.repeat(np.delete(np.arange(mask.sum()), np.unique(faces))[:, np.newaxis], 3, axis=1)
-    faces = np.concatenate([np.asarray(faces), degen_faces])
+    faces = np.asarray(faces)
 
     return faces
 
 
-def refine_geometry(meshes, borderline, dist, sampler_mesh, dilate_factor):
+def refine_geometry(meshes: o3d.geometry.TriangleMesh,
+                    borderline: np.ndarray,
+                    max_dist: float, 
+                    min_dist: float, 
+                    sampler_mesh: o3d.geometry.TriangleMesh, 
+                    dilate_factor: float, 
+                    merge_eps: float = 1e-2):
     mesh = np.sum(meshes)
     borderline = create_o3d_pcd(borderline)
 
     # sample points on PSR
-    pcd = sampler_mesh.sample_points_poisson_disk(
-        int(np.asarray(mesh.vertices).size * dilate_factor)
-    )
+    # pcd = sampler_mesh.sample_points_poisson_disk(
+    #     int(np.asarray(mesh.vertices).size * dilate_factor)
+    # )
 
-    distance = pcd.compute_point_cloud_distance(borderline)
-    filter_o3d_pcd(pcd, np.asarray(distance) < dist)
+    vertices = np.asarray(sampler_mesh.vertices)
+    sampler_pcd = create_o3d_pcd(vertices)
+
+    distance = np.asarray(sampler_pcd.compute_point_cloud_distance(borderline))
+    vertex_filter = (distance <= max_dist) & (distance >= min_dist) & (vertices[:, 2] >= mesh.get_min_bound()[2])
+    filter_o3d_pcd(sampler_pcd, vertex_filter)
+
+    vertex_ids = np.where(vertex_filter)[0]
+    faces = np.asarray(sampler_mesh.triangles)
+    face_filter = np.any(np.isin(faces, vertex_ids), axis=-1)
+    
+    sampler_mesh.triangles = o3d.utility.Vector3iVector(faces[face_filter])
+    sampler_mesh.remove_unreferenced_vertices()
 
     # psr_filter = create_distance_filter(
     #     np.asarray(pcd.points, dtype=np.float32), 
@@ -112,7 +127,7 @@ def refine_geometry(meshes, borderline, dist, sampler_mesh, dilate_factor):
     # )
     # filter_o3d_pcd(pcd, psr_filter.logical_not())
 
-    o3d.visualization.draw_geometries([pcd, borderline, mesh])
+    mesh = sampler_mesh + mesh
     # exit()
 
     return mesh
@@ -185,7 +200,8 @@ class GarmentModel3D:
         # filter pcd
         filter_obj = psr(np.sum(self.pcds), depth=5)
         pt_filters = [create_distance_filter(pcd, filter_obj, u_dist=dist) for pcd in self.np_pcds]
-        filter_pcd(self.pcds, pt_filters)
+        for pcd, f in zip(self.pcds, pt_filters):
+            filter_o3d_pcd(pcd, f)
 
         # update mask
         for mask, f in zip(self.pcd_masks, pt_filters):
@@ -203,6 +219,7 @@ class GarmentModel3D:
                lambda_filter: float = 0.5,
                mu: float = -0.53,
                refine_dist: float = 0.01,
+               refine_dist_min: float = 0.001,
                sampler_depth: int = 5, 
                sampler_mesh: o3d.geometry.TriangleMesh|None = None,
                sampler_dilation: float = 0.5):
@@ -233,6 +250,7 @@ class GarmentModel3D:
             meshes, 
             borderline, 
             refine_dist,
+            refine_dist_min,
             sampler_mesh if sampler_mesh is not None else psr(np.sum(self.pcds), depth=sampler_depth),
             sampler_dilation
         )

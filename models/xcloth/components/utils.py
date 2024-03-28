@@ -97,15 +97,10 @@ def filter_o3d_pcd(pcd, _filter):
         _filter = _filter.numpy()
         
     pcd.points = o3d.utility.Vector3dVector(np.asarray(pcd.points)[_filter])
-    if pcd.normals is not None: 
+    if len(pcd.normals) > 0: 
         pcd.normals = o3d.utility.Vector3dVector(np.asarray(pcd.normals)[_filter])
-    if pcd.colors is not None:
+    if len(pcd.colors) > 0:
         pcd.colors = o3d.utility.Vector3dVector(np.asarray(pcd.colors)[_filter])
-
-
-def filter_pcd(pcds, _filters):
-    for pcd, f in zip(pcds, _filters):
-        filter_o3d_pcd(pcd, f)
 
 
 def find_border(mat):
