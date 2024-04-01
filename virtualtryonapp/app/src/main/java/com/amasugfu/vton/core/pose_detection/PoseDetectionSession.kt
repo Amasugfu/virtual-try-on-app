@@ -12,23 +12,19 @@ import com.google.mlkit.vision.pose.accurate.AccuratePoseDetectorOptions
 
 
 interface IPoseDetectionSession {
-    fun getDetectedPoses()
     fun startSession()
     fun endSession()
 }
 
 class PoseDetectionSession : ImageAnalysis.Analyzer, IPoseDetectionSession {
     var isStarted: Boolean = false
-    val options: AccuratePoseDetectorOptions = AccuratePoseDetectorOptions.Builder().setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE).build()
-    val poseDetector: PoseDetector = PoseDetection.getClient(options)
+    private val options: AccuratePoseDetectorOptions =
+        AccuratePoseDetectorOptions.Builder().setDetectorMode(AccuratePoseDetectorOptions.STREAM_MODE).build()
+    private val poseDetector: PoseDetector = PoseDetection.getClient(options)
 
     private lateinit var image: InputImage
-    lateinit var pose: Pose
+    var pose: Pose? =  null
         private set
-
-    override fun getDetectedPoses() {
-        var result = poseDetector.process(image)
-    }
 
     override fun startSession() {
         isStarted = true
@@ -43,7 +39,13 @@ class PoseDetectionSession : ImageAnalysis.Analyzer, IPoseDetectionSession {
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
             image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-            poseDetector.process(image).onSuccessTask { result -> pose = result }
+            poseDetector
+                .process(image)
+                .addOnSuccessListener { result ->
+                    synchronized(this) {
+                        pose = result
+                    }
+                }
         }
     }
 }
