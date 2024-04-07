@@ -1,4 +1,4 @@
-package com.amasugfu.vton.ui.theme
+package com.amasugfu.vton.view.theme
 
 import android.app.Activity
 import android.os.Build

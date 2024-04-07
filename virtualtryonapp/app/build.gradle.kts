@@ -1,6 +1,8 @@
 plugins {
+    kotlin("kapt")
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
@@ -9,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.amasugfu.vton"
-        minSdk = 28
+        minSdk = 29
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -27,11 +29,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "1.8"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
@@ -46,15 +48,36 @@ android {
     }
 }
 
+kotlin {
+    jvmToolchain(8)
+}
+
 dependencies {
+    implementation("com.google.guava:guava:33.1.0-android")
+
     implementation("androidx.core:core-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
     implementation("androidx.activity:activity-compose:1.7.0")
-    implementation("com.google.mlkit:pose-detection-accurate:18.0.0-beta4")
+    implementation("com.google.mlkit:pose-detection:18.0.0-beta4")
+//    implementation("com.google.mlkit:pose-detection-accurate:18.0.0-beta4")
 
     val cameraxVersion = "1.3.2"
     implementation("androidx.camera:camera-camera2:${cameraxVersion}")
-//    implementation("androidx.camera:camera-mlkit-vision:${cameraxVersion}")
+    implementation("androidx.camera:camera-view:${cameraxVersion}")
+    implementation("androidx.camera:camera-lifecycle:${cameraxVersion}")
+
+    val cameraxVisionVersion = "1.3.0-beta02"
+    implementation("androidx.camera:camera-mlkit-vision:${cameraxVisionVersion}")
+
+    // filament for 3D rendering
+    val filamentVersion = "1.51.2"
+    implementation("com.google.android.filament:filament-android:${filamentVersion}")
+    implementation("com.google.android.filament:gltfio-android:${filamentVersion}")
+    implementation("com.google.android.filament:filament-utils-android:${filamentVersion}")
+
+    implementation("com.google.dagger:hilt-android:2.44")
+    kapt("com.google.dagger:hilt-android-compiler:2.44")
 
     implementation(platform("androidx.compose:compose-bom:2023.03.00"))
     implementation("androidx.compose.ui:ui")
@@ -71,4 +94,12 @@ dependencies {
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+kapt {
+    correctErrorTypes = true
+}
+
+kotlin {
+    jvmToolchain(17)
 }

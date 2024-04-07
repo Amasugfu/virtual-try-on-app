@@ -1,7 +1,6 @@
-package com.amasugfu.vton.ui
+package com.amasugfu.vton.view
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,13 +21,16 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amasugfu.vton.R
-import com.amasugfu.vton.ui.theme.CustomCyan
-import com.amasugfu.vton.ui.theme.VirtualtryonappTheme
+import com.amasugfu.vton.view.theme.CustomCyan
+import com.amasugfu.vton.view.theme.VirtualtryonappTheme
 import com.amasugfu.vton.viewmodel.MainViewModel
 
 @Composable
-fun MainScreen(viewModel: MainViewModel = MainViewModel()) {
+fun MainScreen() {
+    val viewModel: MainViewModel = viewModel()
+
     Box(
         contentAlignment = Alignment.TopCenter,
         modifier = Modifier.fillMaxSize()
@@ -42,17 +44,16 @@ fun MainScreen(viewModel: MainViewModel = MainViewModel()) {
             // upload button
             when (viewModel.inputMode.value) {
                 MainViewModel.InputMode.UPLOAD_IMAGE ->
-                    SquareButton(viewModel::openImageSelection, R.drawable.ic_image, "Upload an Image")
+                    MainClickable(viewModel::openImageSelection, R.drawable.ic_image, "Upload an Image")
                 MainViewModel.InputMode.UPLOAD_MODEL ->
-                    SquareButton(viewModel::openModelSelection, R.drawable.ic_storage, "Upload a Saved Model")
+                    MainClickable(viewModel::openModelSelection, R.drawable.ic_storage, "Upload a Saved Model")
                 MainViewModel.InputMode.CAMERA ->
-                    SquareButton(viewModel::openCamera, R.drawable.ic_camera, "Take a Photo")
+                    MainClickable(viewModel::openCamera, R.drawable.ic_camera, "Take a Photo")
             }
 
             Spacer(Modifier.height(100.dp))
 
             // button menu
-
             Row (
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -116,7 +117,7 @@ fun MenuButton(name: String, id: Int, target: MutableState<MainViewModel.InputMo
 }
 
 @Composable
-fun SquareButton(onClick: () -> Unit, id: Int, hint: String = "") {
+fun MainClickable(onClick: () -> Unit, id: Int, hint: String = "") {
     OutlinedButton(
         onClick = onClick,
         modifier = Modifier

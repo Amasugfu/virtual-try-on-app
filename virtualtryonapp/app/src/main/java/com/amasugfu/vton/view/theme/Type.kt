@@ -1,4 +1,4 @@
-package com.amasugfu.vton.ui.theme
+package com.amasugfu.vton.view.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

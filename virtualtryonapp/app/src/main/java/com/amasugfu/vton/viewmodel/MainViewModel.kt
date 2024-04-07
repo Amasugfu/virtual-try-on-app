@@ -1,13 +1,18 @@
 package com.amasugfu.vton.viewmodel
 
-import androidx.camera.core.impl.LiveDataObservable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
-import kotlin.properties.ObservableProperty
+import com.amasugfu.vton.view.NavigationController
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 
-class MainViewModel : ViewModel() {
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val navigationController: NavigationController
+) : ViewModel() {
+
     enum class InputMode {
         UPLOAD_IMAGE,
         UPLOAD_MODEL,
@@ -15,9 +20,10 @@ class MainViewModel : ViewModel() {
     }
 
     val inputMode: MutableState<InputMode> = mutableStateOf(InputMode.UPLOAD_IMAGE)
+    val inputValue: MutableLiveData<Any> by lazy { MutableLiveData<Any>() }
 
     fun openImageSelection() {
-
+        navigationController.navigateTo("PhotoPicker")
     }
 
     fun openModelSelection() {
@@ -25,10 +31,23 @@ class MainViewModel : ViewModel() {
     }
 
     fun openCamera() {
-
+        navigationController.navigateTo("Camera")
     }
 
-    fun changeInputMode(inputMode: InputMode) {
-        this.inputMode.value = inputMode
+    fun onInputValueChanged() {
+        when (inputMode.value) {
+            InputMode.UPLOAD_IMAGE, InputMode.CAMERA -> startImageAlignment()
+            InputMode.UPLOAD_MODEL -> startVTON()
+        }
+    }
+
+    fun startImageAlignment() {
+        // TODO: add alignment window
+
+        navigationController.navigateTo("PoseDetection")
+    }
+
+    fun startVTON() {
+
     }
 }
