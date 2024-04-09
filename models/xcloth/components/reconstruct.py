@@ -49,10 +49,11 @@ def partial_mesh(pcd, mask, thres=0.025):
     
      [2, 3]]
 
-    add [0, 1, 2] and [0, 2, 3] as faces if all elements are `True` in the mask
+    add [0, 1, 2] and [1, 2, 3] as faces if all elements are `True` in the mask
     """
         
     faces = []
+    face_normals = []
     idx = np.empty_like(mask, dtype=int)
     idx[mask] = np.arange(mask.sum())
     
@@ -63,6 +64,9 @@ def partial_mesh(pcd, mask, thres=0.025):
         # return whether the points are within a distance to form a face
         dist = [np.linalg.norm(pcd[a] - pcd[b]) for a, b in combinations(i, 2)]
         return max(dist) <= thres
+    
+    def __compute_face_normal(i):
+        return np.mean(pcd[i], axis=0)
 
     op = tuple(product((1, 0), repeat=2))
     # for all points that are considered a vertex, create a face if the condition is met
@@ -81,13 +85,16 @@ def partial_mesh(pcd, mask, thres=0.025):
 
         if valid[-2] and __within_thres(tmp := indices[:-1]): 
             faces.append(tmp)
+            face_normals.append(__compute_face_normal(tmp))
  
-        if valid[-1] and __within_thres(tmp := [*indices[:2], indices[-1]]): 
+        if valid[-1] and __within_thres(tmp := [*indices[:2], indices[-1]][::-1]): 
             faces.append(tmp)
+            face_normals.append(__compute_face_normal(tmp))
 
     faces = np.asarray(faces)
+    face_normals = np.asarray(face_normals)
 
-    return faces
+    return faces, face_normals
 
 
 def refine_geometry(meshes: o3d.geometry.TriangleMesh,
@@ -127,8 +134,10 @@ def refine_geometry(meshes: o3d.geometry.TriangleMesh,
     # )
     # filter_o3d_pcd(pcd, psr_filter.logical_not())
 
-    mesh = sampler_mesh + mesh
+    mesh = mesh #+ sampler_mesh
     # exit()
+
+    o3d.visualization.draw_geometries([mesh])
 
     return mesh
 
@@ -236,7 +245,7 @@ class GarmentModel3D:
 
         # partial mesh 
         faces = [partial_mesh(pcd, mask, face_dist) for pcd, mask in zip(self.np_pcds, self.pcd_masks)]
-        meshes = [create_o3d_mesh(pcd, faces_) for pcd, faces_ in zip(self.pcds, faces)]
+        meshes = [create_o3d_mesh(pcd, faces_, face_normals) for pcd, (faces_, face_normals) in zip(self.pcds, faces)]
 
         # compute borders coordinates
         borderline = [

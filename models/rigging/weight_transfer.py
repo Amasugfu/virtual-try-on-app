@@ -4,16 +4,6 @@ https://github.com/rin-23/RobustSkinWeightsTransferCode
 import sys
 import time
 
-from maya import (
-    cmds,
-)
-
-from maya.api import (
-    OpenMaya as om,
-    OpenMayaAnim as oma,
-    # OpenMayaUI as omui,
-)
-
 import numpy as np
 # import numpy.linalg as nplinalg
 import scipy.sparse as sp
@@ -45,6 +35,9 @@ from logging import (
 )
 logger = getLogger(__name__)
 logger.setLevel(INFO)
+
+import open3d as o3d
+from xcloth.components.utils import compute_closest_point
 
 
 ########################################################################################################################
@@ -163,26 +156,32 @@ def get_vertex_normals_as_numpy_array(mesh):
 
 @timeit
 def create_vertex_data_array(mesh):
-    # type: (om.MFnMesh) -> np.ndarray
+    # type: (o3d.geometry.TriangleMesh) -> np.ndarray
     """Create a structured numpy array containing vertex index, position, and normal."""
 
     vertex_data = np.zeros(
-            mesh.numVertices,
+            len(mesh.vertices),
             dtype=[
                 ("index", np.int64),
                 ("position", np.float64, 3),
                 ("normal", np.float64, 3),
                 ("face_index", np.int64),
+                ("weights", np.float64, 3)
             ])
+    
+    vertices = np.asarray(mesh.vertices)
+    normals = np.asarray(mesh.vertex_normals)
 
-    for i in range(mesh.numVertices):
-        position = mesh.getPoint(i, om.MSpace.kWorld)  # type: ignore
-        normal = mesh.getVertexNormal(i, om.MSpace.kWorld)  # type: ignore
+    for i in range(vertices.shape[0]):
+        position = vertices[i]  # type: ignore
+        normal = normals[i]  # type: ignore
         vertex_data[i] = (
-                i,
-                [position.x, position.y, position.z],
-                [normal.x, normal.y, normal.z],
-                -1)
+            i,
+            position,
+            normal,
+            -1,
+            np.zeros(3)
+        )
 
     return vertex_data
 
@@ -195,42 +194,30 @@ def get_closest_points(source_mesh, target_vertex_data):
     closest_points_data = np.zeros(target_vertex_data.shape, dtype=target_vertex_data.dtype)
     num_vertices = target_vertex_data.shape[0]
 
-    if not cmds.about(batch=True):
-        cmds.progressWindow(
-                title="Finding closest points...",
-                progress=0,
-                status="Finding closest points...",
-                isInterruptable=True,
-                max=num_vertices,
-        )
+    closest_points = compute_closest_point(source_mesh, np.asarray([data["position"] for data in target_vertex_data], dtype=np.float32))
+    vertex_normals = np.asarray(source_mesh.vertex_normals)
+    faces = np.asarray(source_mesh.triangles)
 
-    for i in range(num_vertices):
-        target_pos = target_vertex_data[i]["position"]
-        
+    for i in range(num_vertices):       
         # Get closest point on source mesh
-        try:
-            tmp = source_mesh.getClosestPointAndNormal(om.MPoint(target_pos), om.MSpace.kWorld)  # type: ignore
-        except RuntimeError:
-            continue
+        pos = closest_points["points"][i].numpy()
+        face_index = closest_points["primitive_ids"][i].item()
 
-        closest_point, closest_normal, face_index = tmp
-        pos = np.array([closest_point.x, closest_point.y, closest_point.z])
-        norm = np.array([closest_normal.x, closest_normal.y, closest_normal.z])
+        u, v = closest_points["primitive_uvs"][i].numpy()
+        weights = np.array([1 - u - v, u, v])
+        
+        norm = weights.reshape(3, -1) * vertex_normals[faces[face_index]]
+        norm = norm.sum(axis=0)
 
         # Store target vertex index, closest point position, and closest point normal
         closest_points_data[i] = (
-                target_vertex_data[i]["index"],
-                pos,
-                norm,
-                face_index
-                )
-
-        if not cmds.about(batch=True):
-            cmds.progressWindow(edit=True, step=1)
-
-    if not cmds.about(batch=True):
-        cmds.progressWindow(edit=True, endProgress=True)
-
+            target_vertex_data[i]["index"],
+            pos,
+            norm,
+            face_index,
+            weights
+        )
+        
     return closest_points_data
 
 
@@ -276,39 +263,32 @@ def filter_high_confidence_matches(target_vertex_data, closest_points_data, max_
 
 
 @timeit
-def copy_weights_for_confident_matches(source_mesh, target_mesh, confident_vertex_indices, closest_points_data):
+def copy_weights_for_confident_matches(source_mesh, source_weights, confident_vertex_indices, closest_points_data):
     # type: (om.MFnMesh, om.MFnMesh, List[int], np.ndarray) -> Dict[int, np.ndarray]
     """copy weights for confident matches."""
 
-    source_skin_cluster_name = get_skincluster(source_mesh.name())
-    source_skin_cluster = as_mfn_skin_cluster(source_skin_cluster_name)
-    deformer_bones = cmds.skinCluster(source_skin_cluster_name, query=True, influence=True)
+    # source_skin_cluster_name = get_skincluster(source_mesh.name())
+    # source_skin_cluster = as_mfn_skin_cluster(source_skin_cluster_name)
+    # deformer_bones = cmds.skinCluster(source_skin_cluster_name, query=True, influence=True)
 
-    target_skin_cluster_name = get_or_create_skincluster(target_mesh.name(), deformer_bones)
-    target_skin_cluster = as_mfn_skin_cluster(target_skin_cluster_name)
+    # target_skin_cluster_name = get_or_create_skincluster(target_mesh.name(), deformer_bones)
+    # target_skin_cluster = as_mfn_skin_cluster(target_skin_cluster_name)
 
     known_weights = {}  # type: Dict[int, np.ndarray]
+    faces = np.asarray(source_mesh.triangles)
 
     # copy weights
     for i in confident_vertex_indices:
         src_face_index = closest_points_data[i]["face_index"]
-        point = om.MPoint(closest_points_data[i]["position"])
+
         if src_face_index < 0:
             continue
 
-        weights = get_weights_at_point(source_skin_cluster, source_mesh, src_face_index, point)
+        weights = closest_points_data[i]["weights"].reshape(3, -1) * source_weights[faces[src_face_index]]
+        weights = weights.sum(axis=0)
 
         if len(weights) <= 0:
             continue
-
-        for j in range(len(weights)):
-            cmds.setAttr(
-                "{}.weightList[{}].weights[{}]".format(
-                    target_skin_cluster.name(),
-                    i,
-                    j,
-                ),
-                weights[j])
 
         known_weights[i] = np.array(weights)
 
@@ -472,23 +452,17 @@ def compute_laplacian_and_mass_matrix(mesh):
     """
 
     # initialize sparse laplacian matrix
-    n_vertices = mesh.numVertices
+    n_vertices = len(mesh.vertices)
     L = sp.lil_matrix((n_vertices, n_vertices))
     areas = np.zeros(n_vertices)
 
-    # for each edge and face, calculate the laplacian entry and area
-    face_iter = om.MItMeshPolygon(mesh.dagPath())
-    while not face_iter.isDone():
+    vertices = np.asarray(mesh.vertices)
+    faces = np.asarray(mesh.triangles)
 
-        n_tri = face_iter.numTriangles()
-
-        for j in range(n_tri):
-
-            tri_positions, tri_indices = face_iter.getTriangle(j)
-            add_laplacian_entry_in_place(L, tri_positions, tri_indices)
-            add_area_in_place(areas, tri_positions, tri_indices)
-
-        face_iter.next()
+    for face in faces:
+        tri_positions = vertices[face]
+        add_laplacian_entry_in_place(L, tri_positions, face)
+        add_area_in_place(areas, tri_positions, face)
 
     L_csr = L.tocsr()
     M_csr = sp.diags(areas)
@@ -497,16 +471,16 @@ def compute_laplacian_and_mass_matrix(mesh):
 
 
 def compute_cotangent(v1, v2, v3):
-    # type: (om.MPoint, om.MPoint, om.MPoint) -> float
+    # type: (np.ndarray, np.ndarray, np.ndarray) -> float
     """compute cotangent from three points."""
 
     edeg1 = v2 - v1
     edeg2 = v3 - v1
 
-    norm1 = edeg1 ^ edeg2
+    norm1 = np.cross(edeg1, edeg2)
+    area = np.linalg.norm(norm1)
 
-    area = norm1.length()
-    cotan = edeg1 * edeg2 / area
+    cotan = edeg1.dot(edeg2) / area
 
     return cotan
 
@@ -564,12 +538,12 @@ def __do_inpainting(mesh, known_weights):
     Q = -L + L @ sp.diags(np.reciprocal(M.diagonal())) @ L
 
     S_match = np.array(list(known_weights.keys()))
-    S_nomatch = np.array(list(set(range(mesh.numVertices)) - set(S_match)))
+    S_nomatch = np.array(list(set(range(len(mesh.vertices))) - set(S_match)))
 
     Q_UU = sp.csr_matrix(Q[np.ix_(S_nomatch, S_nomatch)])
     Q_UI = sp.csr_matrix(Q[np.ix_(S_nomatch, S_match)])
 
-    num_vertices = mesh.numVertices
+    num_vertices = len(mesh.vertices)
     num_bones = len(next(iter(known_weights.values())))
 
     W = np.zeros((num_vertices, num_bones))
@@ -657,17 +631,16 @@ def apply_weight_inpainting(target_mesh, optimized_weights, unconvinced_vertex_i
 
 
 def calculate_threshold_distance(mesh, threadhold_ratio=0.05):
-    # type: (om.MFnMesh, float) -> float
+    # type: (o3d.geometry.TriangleMesh, float) -> float
     """Returns 𝑑𝑏𝑜𝑥 * 0.05
 
     𝑑𝑏𝑜𝑥 is the target mesh bounding box diagonal length.
     """
 
-    bbox = mesh.boundingBox
-    bbox_min = bbox.min
-    bbox_max = bbox.max
+    bbox_min = mesh.get_min_bound()
+    bbox_max = mesh.get_max_bound()
     bbox_diag = bbox_max - bbox_min
-    bbox_diag_length = bbox_diag.length()
+    bbox_diag_length = np.linalg.norm(bbox_diag)
 
     threshold_distance = bbox_diag_length * threadhold_ratio
 
@@ -675,14 +648,7 @@ def calculate_threshold_distance(mesh, threadhold_ratio=0.05):
 
 
 def segregate_vertices_by_confidence(src_mesh, dst_mesh, threshold_distance=0.05, threshold_angle=25.0, use_kdtree=False):
-    # type: (om.MFnMesh|Text, om.MFnMesh|Text, float, float, bool) -> Tuple[List[int], List[int]]
-    """segregate vertices by confidence."""
-
-    if not isinstance(src_mesh, om.MFnMesh):
-        src_mesh = as_mfn_mesh(src_mesh)
-
-    if not isinstance(dst_mesh, om.MFnMesh):
-        dst_mesh = as_mfn_mesh(dst_mesh)
+    # type: (o3d.geometry.TriangleMesh, o3d.geometry.TriangleMesh, float, float, bool) -> Tuple[List[int], List[int]]
 
     threshold_distance = calculate_threshold_distance(dst_mesh, threshold_distance)
     target_vertex_data = create_vertex_data_array(dst_mesh)
@@ -693,7 +659,7 @@ def segregate_vertices_by_confidence(src_mesh, dst_mesh, threshold_distance=0.05
         closest_points_data = get_closest_points(src_mesh, target_vertex_data)
 
     confident_vertex_indices = filter_high_confidence_matches(target_vertex_data, closest_points_data, threshold_distance, threshold_angle)
-    unconvinced_vertex_indices = list(set(range(dst_mesh.numVertices)) - set(confident_vertex_indices))
+    unconvinced_vertex_indices = list(set(range(len(dst_mesh.vertices))) - set(confident_vertex_indices))
 
     return confident_vertex_indices, unconvinced_vertex_indices
 
@@ -709,10 +675,10 @@ def inpaint_weights(target_mesh, indices):
     apply_weight_inpainting(target_mesh, tmp, indices)
 
 
-def main():
+def main(source_mesh, target_mesh, source_weights):
+    # type: (o3d.geometry.TriangleMesh, o3d.geometry.TriangleMesh, np.ndarray) -> o3d.geometry.TriangleMesh
 
     # setup
-    source_mesh, target_mesh = load_meshes(cmds.ls(sl=True)[0], cmds.ls(sl=True)[1])
     tmp = segregate_vertices_by_confidence(source_mesh, target_mesh)
     target_vertex_data = create_vertex_data_array(target_mesh)
 
@@ -721,11 +687,12 @@ def main():
     unconvinced_vertex_indices = tmp[1]
 
     closest_points_data = get_closest_points(source_mesh, target_vertex_data)
-    known_weights = copy_weights_for_confident_matches(source_mesh, target_mesh, confident_vertex_indices, closest_points_data)
+    known_weights = copy_weights_for_confident_matches(source_mesh, source_weights, confident_vertex_indices, closest_points_data)
 
     # inpainting
     optimized_weights = compute_weights_for_remaining_vertices(target_mesh, known_weights)
-    apply_weight_inpainting(target_mesh, optimized_weights, unconvinced_vertex_indices)
+    return optimized_weights, confident_vertex_indices, unconvinced_vertex_indices
+    # apply_weight_inpainting(target_mesh, optimized_weights, unconvinced_vertex_indices)
 
 
 if __name__ == "__main__":

@@ -72,6 +72,20 @@ def transform_coords_norm2real(
     return real_coords, sep
 
 
+def compute_distance_from_mesh(mesh, points):
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh=o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+
+    return scene.compute_distance(points)
+
+
+def compute_closest_point(mesh, points):
+    scene = o3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh=o3d.t.geometry.TriangleMesh.from_legacy(mesh))
+
+    return scene.compute_closest_points(points)
+
+
 def create_distance_filter(points, filter_obj, u_dist=None, l_dist=None):
     """
     @param: filter_obj: the triangular mesh to compute the distance from
@@ -79,10 +93,7 @@ def create_distance_filter(points, filter_obj, u_dist=None, l_dist=None):
 
     @return: a filter masking only the vertices that is within the distance from the `filter_obj`
     """
-    scene = o3d.t.geometry.RaycastingScene()
-    scene.add_triangles(mesh=o3d.t.geometry.TriangleMesh.from_legacy(filter_obj))
-
-    distance = scene.compute_distance(points)
+    distance = compute_distance_from_mesh(filter_obj, points)
 
     f = True
     
@@ -123,12 +134,15 @@ def find_border(mat):
     return generic_filter(mat, __replace_non_border, 3)
 
 
-def create_o3d_mesh(pcd, faces):
+def create_o3d_mesh(pcd, faces, face_normals=None):
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = pcd.points
     mesh.vertex_normals = pcd.normals
     # mesh.vertex_colors = pcd.colors
     mesh.triangles = o3d.utility.Vector3iVector(faces)
+    if face_normals is not None:
+        mesh.triangle_normals = o3d.utility.Vector3dVector(face_normals)
+    mesh.compute_vertex_normals()
     return mesh
 
 
