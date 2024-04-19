@@ -1,8 +1,12 @@
+import com.google.protobuf.gradle.id
+import com.google.protobuf.gradle.proto
+
 plugins {
     kotlin("kapt")
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.dagger.hilt.android")
+    id("com.google.protobuf") version "0.9.4"
 }
 
 android {
@@ -19,6 +23,12 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    sourceSets.getByName("main") {
+        proto {
+            srcDir("../../public")
         }
     }
 
@@ -49,7 +59,59 @@ android {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(17)
+}
+
+val protobufVersion = "3.25.1"
+val grpcVersion = "1.62.2"
+val grpcKtVersion = "1.4.1"
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:${protobufVersion}"
+    }
+
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" // CURRENT_GRPC_VERSION
+        }
+
+        id("grpckt") {
+            artifact = "io.grpc:protoc-gen-grpc-kotlin:${grpcKtVersion}:jdk8@jar"
+        }
+
+        id("java") {
+            artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}"
+        }
+    }
+
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                id("kotlin")
+            }
+            task.plugins {
+                id("grpc") {
+                    option("lite")
+                    outputSubDir = "grpc_java"
+                }
+
+                id("grpckt") {
+                    option("lite")
+                    outputSubDir = "grpc_kt"
+                }
+
+                id("java") {
+                    option("lite")
+                    outputSubDir = "grpc_java"
+                }
+
+                id("python") {
+                    outputSubDir = "grpc_py"
+                }
+            }
+        }
+    }
 }
 
 dependencies {
@@ -59,10 +121,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
     implementation("androidx.activity:activity-compose:1.7.0")
+    implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("com.google.mlkit:pose-detection:18.0.0-beta4")
 //    implementation("com.google.mlkit:pose-detection-accurate:18.0.0-beta4")
 
-    val cameraxVersion = "1.3.2"
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+    val cameraxVersion = "1.4.0-alpha04"
     implementation("androidx.camera:camera-camera2:${cameraxVersion}")
     implementation("androidx.camera:camera-view:${cameraxVersion}")
     implementation("androidx.camera:camera-lifecycle:${cameraxVersion}")
@@ -75,6 +140,14 @@ dependencies {
     implementation("com.google.android.filament:filament-android:${filamentVersion}")
     implementation("com.google.android.filament:gltfio-android:${filamentVersion}")
     implementation("com.google.android.filament:filament-utils-android:${filamentVersion}")
+
+    // gRPC
+    implementation("io.grpc:grpc-okhttp:${grpcVersion}")
+    implementation("io.grpc:grpc-protobuf-lite:${grpcVersion}")
+    implementation("io.grpc:grpc-stub:${grpcVersion}")
+    implementation("io.grpc:grpc-kotlin-stub:${grpcKtVersion}")
+    implementation("com.google.protobuf:protobuf-javalite:${protobufVersion}")
+    implementation("com.google.protobuf:protobuf-kotlin-lite:${protobufVersion}")
 
     implementation("com.google.dagger:hilt-android:2.44")
     kapt("com.google.dagger:hilt-android-compiler:2.44")
@@ -98,8 +171,4 @@ dependencies {
 
 kapt {
     correctErrorTypes = true
-}
-
-kotlin {
-    jvmToolchain(17)
 }

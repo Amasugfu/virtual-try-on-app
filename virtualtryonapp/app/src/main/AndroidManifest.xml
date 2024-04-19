@@ -19,7 +19,9 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:supportsRtl="true"
             android:name=".VirtualTryOnApp"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
             tools:targetApi="34">
+
         <activity
                 android:name=".view.activity.MainActivity"
                 android:exported="true"
@@ -32,6 +34,16 @@
 
         <activity
                 android:name=".view.activity.PoseDetectionActivity"
+                android:exported="true">
+        </activity>
+
+        <activity
+                android:name=".view.activity.GarmentAlignmentActivity"
+                android:exported="true">
+        </activity>
+
+        <activity
+                android:name=".view.activity.SettingsActivity"
                 android:exported="true">
         </activity>
 

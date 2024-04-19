@@ -9,6 +9,10 @@ import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as splinalg
 from scipy.spatial import cKDTree
+from pypardiso import spsolve
+
+import open3d as o3d
+from xcloth.components.utils import compute_closest_point
 
 if sys.version_info > (3, 0):
     from typing import TYPE_CHECKING
@@ -29,16 +33,10 @@ if sys.version_info > (3, 0):
 
 from logging import (
     getLogger,
-    WARN,  # noqa: F401
-    DEBUG,  # noqa: F401
     INFO,  # noqa: F401
 )
 logger = getLogger(__name__)
 logger.setLevel(INFO)
-
-import open3d as o3d
-from xcloth.components.utils import compute_closest_point
-
 
 ########################################################################################################################
 
@@ -50,108 +48,6 @@ def timeit(func):
         logger.debug(f"{func.__name__} の実行時間: {end_time - start_time} 秒")
         return result
     return wrapper
-
-
-########################################################################################################################
-def as_selection_list(iterable):
-    # type: (Union[Text, List[Text]]) -> om.MSelectionList
-    """Converts an iterable to an MSelectionList."""
-
-    selection_list = om.MSelectionList()
-    if isinstance(iterable, (list, tuple)):
-        for item in iterable:
-            selection_list.add(item)
-    else:
-        selection_list.add(iterable)
-
-    return selection_list
-
-
-def as_dag_path(node):
-    # type: (Union[Text, om.MObject, om.MDagPath]) -> om.MDagPath
-    """Converts a node to an MDagPath."""
-
-    if isinstance(node, om.MDagPath):
-        return node
-
-    if isinstance(node, om.MObject):
-        dag_path = om.MDagPath.getAPathTo(node)
-        return dag_path
-
-    selection_list = as_selection_list(node)
-    dag_path = selection_list.getDagPath(0)
-    return dag_path
-
-
-def as_depend_node(node):
-    # type: (Union[Text, om.MObject, om.MDagPath]) -> om.MFnDependencyNode
-    """Converts a node to an MFnDependencyNode."""
-
-    selection_list = as_selection_list(node)
-    depend_node = om.MFnDependencyNode(selection_list.getDependNode(0))
-
-    return depend_node
-
-def as_mfn_mesh(node):
-    # type: (Union[Text, om.MObject, om.MDagPath]) -> om.MFnMesh
-    """Converts a node to an MFnMesh."""
-
-    dag_path = as_dag_path(node)
-    mfn_mesh = om.MFnMesh(dag_path)
-    return mfn_mesh
-
-
-def as_mfn_skin_cluster(node):
-    # type: (Union[Text, om.MObject, om.MDagPath]) -> om.MFnSkinCluster
-    """Converts a node to an MFnSkinCluster."""
-
-    dep_node = as_depend_node(node)
-    mfn_skin_cluster = oma.MFnSkinCluster(dep_node.object())
-    return mfn_skin_cluster
-
-
-def load_meshes(source_mesh_name, target_mesh_name):
-    # type: (str, str) -> Tuple[om.MFnMesh, om.MFnMesh]
-    """load meshes."""
-
-    print("Loading meshes...")
-
-    if cmds.objectType(source_mesh_name) == "mesh":
-        sm = source_mesh_name
-    else:
-        sm = cmds.listRelatives(source_mesh_name, shapes=True)[0]
-
-    if cmds.objectType(target_mesh_name) == "mesh":
-        tm = target_mesh_name
-    else:
-        tm = cmds.listRelatives(target_mesh_name, shapes=True)[0]
-
-    source_mesh = as_mfn_mesh(sm)
-    target_mesh = as_mfn_mesh(tm)
-
-    return source_mesh, target_mesh
-########################################################################################################################
-
-
-@timeit
-def get_vertex_positions_as_numpy_array(mesh):
-    # type: (om.MFnMesh) -> np.ndarray
-    """Returns numpy array of vertex positions."""
-
-    points = mesh.getPoints(om.MSpace.kWorld)  # type: ignore
-    return np.array([[p.x, p.y, p.z] for p in points])
-
-
-@timeit
-def get_vertex_normals_as_numpy_array(mesh):
-    # type: (om.MFnMesh) -> np.ndarray
-    """Returns numpy array of vertex normals."""
-
-    normals = []
-    for i in range(mesh.numVertices):
-        normal = mesh.getVertexNormal(i, om.MSpace.kWorld)  # type: ignore
-        normals.append([normal.x, normal.y, normal.z])
-    return np.array(normals)
 
 
 @timeit
@@ -295,108 +191,6 @@ def copy_weights_for_confident_matches(source_mesh, source_weights, confident_ve
     return known_weights
 
 
-@timeit
-def transfer_weights(source_mesh, target_mesh, confident_vertex_indices=None):
-    # type: (om.MFnMesh|Text, om.MFnMesh|Text, List[int]|None) -> None
-    """transfer weights for confident matches."""
-
-    if not isinstance(source_mesh, om.MFnMesh):
-        source_mesh = as_mfn_mesh(source_mesh)
-
-    if not isinstance(target_mesh, om.MFnMesh):
-        target_mesh = as_mfn_mesh(target_mesh)
-
-    src_skin_cluster_name = get_skincluster(source_mesh.name())
-    src_deformer_bones = cmds.skinCluster(src_skin_cluster_name, query=True, influence=True)
-    dst_skin_cluster_name = get_or_create_skincluster(target_mesh.name(), src_deformer_bones)
-    dst_deformer_bones = cmds.skinCluster(src_skin_cluster_name, query=True, influence=True)
-
-    if len(src_deformer_bones) != len(dst_deformer_bones):
-        cmds.warning("The number of deformer bones is different between source and target meshes.")
-        cmds.delete(dst_skin_cluster_name)
-        dst_skin_cluster_name = get_or_create_skincluster(target_mesh.name(), src_deformer_bones)
-
-    # TODO: confident_vertex_indices のみ対象とするか
-    cmds.copySkinWeights(
-        sourceSkin=src_skin_cluster_name,  
-        destinationSkin=dst_skin_cluster_name,
-        noMirror=True,
-        surfaceAssociation="closestPoint",
-        influenceAssociation="closestJoint",
-    )
-
-@timeit
-def get_skincluster(obj):
-    # type: (Union[Text, List[Text]]) -> Text
-    """get skincluster from object."""
-
-    for history in cmds.listHistory(obj) or []:  # type: ignore
-        obj_type = cmds.objectType(history)
-        if obj_type == "skinCluster":
-            return history
-
-    raise RuntimeError("No skinCluster found on target mesh.")
-
-
-@timeit
-def get_or_create_skincluster(obj, deformers):
-    # type: (Union[Text, List[Text]], List[Text]) -> Text
-    try:
-        return get_skincluster(obj)
-
-    except RuntimeError:
-        return cmds.skinCluster(
-                obj,
-                deformers,  # type: ignore
-                toSelectedBones=True,
-                tsb=True,
-                mi=1,
-                omi=True,
-                bm=0,
-                sm=0, nw=1, wd=0, rui=False, n=obj + "_skinCluster")[0]  # type: ignore
-
-
-def get_weights_at_point(skin_cluster, mesh, face_index, closest_point):
-    # type: (oma.MFnSkinCluster, om.MFnMesh, int, om.MPoint) -> np.ndarray
-    """Returns weights at a given point."""
-
-    it_face = om.MItMeshPolygon(mesh.dagPath())
-    it_face.setIndex(int(face_index))
-    num_vertices = it_face.polygonVertexCount()
-
-    positions = it_face.getPoints(om.MSpace.kWorld)
-    dastances = [positions[i].distanceTo(closest_point) for i in range(num_vertices)]
-    total_distance = sum(dastances)
-    ratios = [dastances[i] / total_distance for i in range(num_vertices)]
-    reverse_ratios = [1.0 - ratios[i] for i in range(num_vertices)]
-    reverse_total_normalized = sum(reverse_ratios)
-    normalized_ratios = [reverse_ratios[i] / reverse_total_normalized for i in range(num_vertices)]
-
-    n_vertices = it_face.polygonVertexCount()
-    avg_weights = None
-
-    for i in range(n_vertices):
-
-        ratio = normalized_ratios[i]
-
-        vertex_index = it_face.vertexIndex(i)
-        component = om.MFnSingleIndexedComponent(om.MFnSingleIndexedComponent().create(om.MFn.kMeshVertComponent))
-        component.addElement(int(vertex_index))
-        raw_weights = skin_cluster.getWeights(mesh.dagPath(), component.object())[0]
-        weights = np.array(raw_weights)
-
-        if len(weights) <= 0:
-            continue
-
-        if avg_weights is None:
-            avg_weights = weights * ratio
-
-        else:
-            avg_weights += (weights * ratio)
-
-    return np.array(avg_weights)
-
-
 def add_laplacian_entry_in_place(L, tri_positions, tri_indices):
     # type: (sp.lil_matrix, np.ndarray, np.ndarray) -> None
     """add laplacian entry.
@@ -485,52 +279,6 @@ def compute_cotangent(v1, v2, v3):
     return cotan
 
 
-def compute_mass_matrix(mesh):
-    # type: (om.MFnMesh) -> sp.dia_matrix
-    """Compute the mass matrix for a given mesh.
-
-    This function calculates the mass matrix of a mesh by iterating over its faces. 
-    For each face, it computes the area of the triangle formed by the vertices of the face.
-    The area is then assigned to the corresponding vertices.
-
-    The mass matrix is represented as a diagonal sparse matrix, where each
-    diagonal element corresponds to the sum of the areas of all faces
-    connected to a vertex.
-
-    Parameters:
-        mesh (om.MFnMesh): The mesh for which the mass matrix is to be computed.
-
-    Returns:
-        sp.dia_matrix: The diagonal sparse mass matrix, where each diagonal element represents 
-                       the total area associated with a vertex.
-    """
-
-    n_vertices = mesh.numVertices
-    areas = np.zeros(n_vertices)
-    face_iter = om.MItMeshPolygon(mesh.dagPath())
-
-    while not face_iter.isDone():
-
-        tri_positions, tri_indices = face_iter.getTriangle(0)
-        v1 = np.array(tri_positions[0])
-        v2 = np.array(tri_positions[1])
-        v3 = np.array(tri_positions[2])
-
-        # calculate area of the current face
-        area = 0.5 * np.linalg.norm(np.cross(v2 - v1, v3 - v1))
-
-        # add area to the corresponding vertices
-        for idx in tri_indices:
-            areas[idx] += area
-
-        face_iter.next()
-
-    # create sparse diagonal mass matrix
-    M = sp.diags(areas)
-
-    return M
-
-
 def __do_inpainting(mesh, known_weights):
     # type: (om.MFnMesh, Dict[int, np.ndarray]) -> np.ndarray
 
@@ -555,7 +303,10 @@ def __do_inpainting(mesh, known_weights):
 
     for bone_idx in range(num_bones):
         b = -Q_UI @ W_I[:, bone_idx]
-        W_U[:, bone_idx] = splinalg.spsolve(Q_UU, b)
+        try:
+            W_U[:, bone_idx] = splinalg.lsqr(Q_UU, b)[0]
+        except:
+            pass
 
     W[S_nomatch, :] = W_U
 
@@ -565,28 +316,9 @@ def __do_inpainting(mesh, known_weights):
     W = np.clip(W, 0.0, 1.0)
 
     # normalize each row to sum to 1
-    W = W / W.sum(axis=1, keepdims=True)
+    W = W / W.sum(axis=1, keepdims=True) + 1e-8
 
     return W
-
-
-def calculate_inpainting(mesh, unknown_vertex_indices):
-    # type: (om.MFnMesh, List[int]|Tuple[int]) -> np.ndarray
-    """Inpainting weights for unknown vertices from known vertices."""
-
-    num_vertices = mesh.numVertices
-    known_indices = list(set(range(num_vertices)) - set(unknown_vertex_indices))
-    skin_cluster_name = get_skincluster(mesh.name())
-    skin_cluster = as_mfn_skin_cluster(skin_cluster_name)
-
-    weights, num_deformers = skin_cluster.getWeights(mesh.dagPath(), om.MObject())
-    weights_np = np.array(weights)
-
-    known_weights = {}  # type: Dict[int, np.ndarray]
-    for vertex_index in known_indices:
-        known_weights[vertex_index] = weights_np[vertex_index * num_deformers: (vertex_index + 1) * num_deformers]
-
-    return __do_inpainting(mesh, known_weights)
 
 
 def compute_weights_for_remaining_vertices(target_mesh, known_weights):
@@ -602,32 +334,6 @@ def compute_weights_for_remaining_vertices(target_mesh, known_weights):
         raise
 
     return optimized
-
-
-def apply_weight_inpainting(target_mesh, optimized_weights, unconvinced_vertex_indices):
-    # type: (om.MFnMesh, np.ndarray, List[int]) -> None
-    """apply weight inpainting."""
-
-    target_skin_cluster_name = get_skincluster(target_mesh.name())
-    target_skin_cluster = as_mfn_skin_cluster(target_skin_cluster_name)
-
-    for i in unconvinced_vertex_indices:
-
-        weights = optimized_weights[i]
-
-        if len(weights) <= 0:
-            continue
-
-        for j in range(len(weights)):
-            cmds.setAttr(
-                "{}.weightList[{}].weights[{}]".format(
-                    target_skin_cluster.name(),
-                    i,
-                    j,
-                ),
-                weights[j])
-
-    print("Done.")
 
 
 def calculate_threshold_distance(mesh, threadhold_ratio=0.05):
@@ -664,22 +370,9 @@ def segregate_vertices_by_confidence(src_mesh, dst_mesh, threshold_distance=0.05
     return confident_vertex_indices, unconvinced_vertex_indices
 
 
-def inpaint_weights(target_mesh, indices):
-    # type: (om.MFnMesh|Text, List[int]) -> None
-    """apply inpainting for indices."""
-
-    if not isinstance(target_mesh, om.MFnMesh):
-        target_mesh = as_mfn_mesh(target_mesh)
-
-    tmp = calculate_inpainting(target_mesh, indices)
-    apply_weight_inpainting(target_mesh, tmp, indices)
-
-
-def main(source_mesh, target_mesh, source_weights):
-    # type: (o3d.geometry.TriangleMesh, o3d.geometry.TriangleMesh, np.ndarray) -> o3d.geometry.TriangleMesh
-
+def main(source_mesh, target_mesh, source_weights, threshold_distance=0.05, threshold_angle=25.0):
     # setup
-    tmp = segregate_vertices_by_confidence(source_mesh, target_mesh)
+    tmp = segregate_vertices_by_confidence(source_mesh, target_mesh, threshold_distance=threshold_distance, threshold_angle=threshold_angle)
     target_vertex_data = create_vertex_data_array(target_mesh)
 
     # confidence

@@ -5,6 +5,10 @@ from scipy.ndimage import generic_filter
 import copy
 from typing import Tuple, Any
 
+from ...smplx_.lbs import lbs
+from ...smplx_.body_models import SMPL
+
+import torch
 
 def create_idx_mat(size):
     """
@@ -138,11 +142,10 @@ def create_o3d_mesh(pcd, faces, face_normals=None):
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = pcd.points
     mesh.vertex_normals = pcd.normals
-    # mesh.vertex_colors = pcd.colors
+    mesh.vertex_colors = pcd.colors
     mesh.triangles = o3d.utility.Vector3iVector(faces)
     if face_normals is not None:
         mesh.triangle_normals = o3d.utility.Vector3dVector(face_normals)
-    mesh.compute_vertex_normals()
     return mesh
 
 
@@ -161,3 +164,28 @@ def psr(pcd, depth):
     return mesh   
 
             
+def pose_smpl(pose, gender="male", return_T_only=False, return_faces=True):
+    smpl = SMPL(model_path="models/smpl", gender=gender)
+    with torch.no_grad():
+        fin_pose= torch.FloatTensor(pose).unsqueeze(0)
+        smpl_output, T = smpl(
+            global_orient=fin_pose[:, :3], 
+            body_pose=fin_pose[:, 3:]
+        )
+        
+        if return_T_only:
+            return T
+
+        ret_verts = smpl_output.vertices
+        ret_joints = smpl_output.joints
+
+        trans_verts = ret_verts.squeeze() #* scale + trans
+        trans_joints = ret_joints.squeeze() #* scale + trans
+        
+        ret = [trans_verts, trans_joints, T]
+        if return_faces: 
+            ret.append(smpl.faces)
+        
+        return tuple(ret)
+    
+    

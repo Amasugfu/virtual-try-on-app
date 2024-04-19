@@ -2,29 +2,29 @@ package com.amasugfu.vton.view
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.TextUnitType
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.amasugfu.vton.R
-import com.amasugfu.vton.view.theme.CustomCyan
-import com.amasugfu.vton.view.theme.VirtualtryonappTheme
 import com.amasugfu.vton.viewmodel.MainViewModel
 
 @Composable
@@ -32,23 +32,22 @@ fun MainScreen() {
     val viewModel: MainViewModel = viewModel()
 
     Box(
-        contentAlignment = Alignment.TopCenter,
-        modifier = Modifier.fillMaxSize()
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxSize().padding(vertical = 50.dp)
     ) {
         // center button
         Column (
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(bottom = 100.dp)
         ) {
-            Spacer(Modifier.height(100.dp))
-
             // upload button
             when (viewModel.inputMode.value) {
                 MainViewModel.InputMode.UPLOAD_IMAGE ->
-                    MainClickable(viewModel::openImageSelection, R.drawable.ic_image, "Upload an Image")
+                    SquareDashedIconButton(viewModel::openImageSelection, R.drawable.ic_image, "Upload an Image")
                 MainViewModel.InputMode.UPLOAD_MODEL ->
-                    MainClickable(viewModel::openModelSelection, R.drawable.ic_storage, "Upload a Saved Model")
+                    SquareDashedIconButton(viewModel::openModelSelection, R.drawable.ic_storage, "Upload a Saved Model")
                 MainViewModel.InputMode.CAMERA ->
-                    MainClickable(viewModel::openCamera, R.drawable.ic_camera, "Take a Photo")
+                    SquareDashedIconButton(viewModel::openCamera, R.drawable.ic_camera, "Take a Photo")
             }
 
             Spacer(Modifier.height(100.dp))
@@ -104,7 +103,7 @@ fun MenuButton(name: String, id: Int, target: MutableState<MainViewModel.InputMo
                         scaleY = scale.value,
 //                        translationY = offset,
                     ),
-                colorFilter = ColorFilter.tint(if (selected) Color.Black else Color.White)
+                colorFilter = ColorFilter.tint(if (selected) MaterialTheme.colorScheme.secondary else Color.White)
             )
         },
         shape = when (pos) {
@@ -112,61 +111,69 @@ fun MenuButton(name: String, id: Int, target: MutableState<MainViewModel.InputMo
             2 -> RoundedCornerShape(0.dp, radius, radius, 0.dp)
             else -> RectangleShape
         },
-        colors = ButtonDefaults.buttonColors(CustomCyan)
+        colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.primary)
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainClickable(onClick: () -> Unit, id: Int, hint: String = "") {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(300.dp)
-            .background(Color.Transparent)
-            .drawBehind {
-                drawRoundRect(
-                    color = Color.LightGray,
-                    cornerRadius = CornerRadius(20.dp.toPx()),
-                    style = Stroke(
-                        width = 5.dp.toPx(),
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(10.dp.toPx(), 10.dp.toPx())
-                    ),
-                ))
-            },
-        shape = RectangleShape,
-        border = null
-    ) {
-        Column (
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Image(
-                painter = painterResource(id = id),
-                contentDescription = null,
-                modifier = Modifier.size(100.dp),
-                colorFilter = ColorFilter.tint(CustomCyan)
-            )
+fun AppBar(
+    navigation: NavigationController,
+    title: String = stringResource(R.string.app_display_name),
+    supplementaryTitle: String? = null,
+    actionsVisible: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.smallTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.shadow(8.dp),
+                title = {
+                    Row {
+                        val size = 5.em
 
-            Spacer(Modifier.height(25.dp))
+                        Text(
+                            title,
+                            style = TextStyle.Default.copy(
+                                fontSize = size,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = -3.sp
+                            ),
+                        )
 
-            Text(
-                text = hint,
-                modifier = Modifier
-                    .border(3.dp, CustomCyan, RoundedCornerShape(10.dp))
-                    .width(200.dp)
-                    .padding(3.dp, 5.dp, 3.dp, 5.dp),
-                color = CustomCyan,
-                textAlign = TextAlign.Center,
-                fontSize = TextUnit(6f, TextUnitType.Em)
+                        if (supplementaryTitle != null) {
+                            Text(
+                                " | $supplementaryTitle",
+                                style = TextStyle.Default.copy(
+                                    fontSize = 5.em,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                            )
+                        }
+                    }
+                },
+                actions = {
+                    if (actionsVisible) {
+                        IconButton(
+                            onClick = { navigation.navigateTo("Settings") }
+                        ) {
+                            Icon(
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "Settings"
+                            )
+                        }
+                    }
+                }
             )
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun MainScreenPreview() {
-    VirtualtryonappTheme {
-        MainScreen()
+    ) {
+        Box(modifier = Modifier.padding(it)) {
+            content()
+        }
     }
 }

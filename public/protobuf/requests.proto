@@ -1,20 +1,37 @@
 syntax = "proto3";
 
-service GarmentReconstruction {
-    rpc getModel3D (Image2D) returns (Model3D) {}
+message IntMat {
+    int32 num_dim = 1;
+    repeated int32 shape = 2;
+    repeated int32 data = 3;
 }
 
-service HumanReconsturction {
-    rpc getModel3D (Image2D) returns (Model3D) {}
+message FloatMat {
+    int32 num_dim = 1;
+    repeated int32 shape = 2;
+    repeated float data = 3;
 }
 
-message Image2D {
-    int64 size = 1;
-    repeated bytes data = 2;
+message ByteBuffer {
+    repeated bytes buffer = 1;
 }
 
+// in .glb format
 message Model3D {
     int64 size = 1;
-    repeated bytes data = 2;
-    optional Image2D texture = 3;
+    bytes data = 2;
+    optional IntMat texture = 3;
+}
+
+message GarmentReconstructionRequest {
+    FloatMat garment_img = 1;
+    FloatMat pose = 2;
+}
+
+service GarmentReconstruction {
+    rpc reconstruct (GarmentReconstructionRequest) returns (stream Model3D) {}
+}
+
+service PoseDetection {
+    rpc getPose (ByteBuffer) returns (FloatMat) {}
 }

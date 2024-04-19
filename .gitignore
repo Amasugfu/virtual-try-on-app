@@ -6,6 +6,7 @@ models/PyMAF
 models/data
 models/smpl
 models/res
+models/smpl_romp
 
 __pycache__/
 *.py[cod]

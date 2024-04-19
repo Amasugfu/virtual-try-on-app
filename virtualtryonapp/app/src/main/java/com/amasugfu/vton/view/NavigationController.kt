@@ -1,6 +1,5 @@
 package com.amasugfu.vton.view
 
-import com.amasugfu.vton.data.domain.navigation.NavigateUsingContextUseCase
 import com.amasugfu.vton.data.domain.navigation.NavigationUseCase
 import javax.inject.Inject
 import javax.inject.Singleton

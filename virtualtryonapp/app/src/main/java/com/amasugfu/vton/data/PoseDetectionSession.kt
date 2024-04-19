@@ -1,6 +1,5 @@
 package com.amasugfu.vton.data
 
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.core.ImageAnalysis.Analyzer
@@ -18,9 +17,11 @@ interface IPoseDetectionSession {
     fun startSession()
     fun endSession()
     fun setPoseDetectedListener(listener: (Pose, InputImage) -> Unit)
+    fun setMediaImageListener(listener: (ImageProxy) -> Unit)
 }
 
-class PoseDetectionSession @Inject constructor() : IPoseDetectionSession, Analyzer {
+class PoseDetectionSession @Inject constructor(
+) : IPoseDetectionSession, Analyzer {
 
     var isStarted: Boolean = false
 
@@ -35,10 +36,16 @@ class PoseDetectionSession @Inject constructor() : IPoseDetectionSession, Analyz
 
     // listener to call when a pose is detected
     private var listener: (Pose, InputImage) -> Unit = { _, _ ->  }
+    private var mediaImageListener: (ImageProxy) -> Unit = {}
 
     override fun setPoseDetectedListener(listener: (Pose, InputImage) -> Unit) {
         this.listener = listener
     }
+
+    override fun setMediaImageListener(listener: (ImageProxy) -> Unit) {
+        this.mediaImageListener = listener
+    }
+
 
     override fun startSession() {
         isStarted = true
@@ -54,21 +61,27 @@ class PoseDetectionSession @Inject constructor() : IPoseDetectionSession, Analyz
             imageProxy.close()
             return
         }
+        mediaImageListener(imageProxy)
 
-        val mediaImage = imageProxy.image
-        if (mediaImage != null) {
-            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+//        val mediaImage = imageProxy.image
+//        if (mediaImage != null) {
 
-            poseDetector.process(image)
-                .addOnSuccessListener {
-                    listener(it, image)
-                }
-                .addOnFailureListener {
-                    Log.d("pose detection", "failed")
-                }
-                .addOnCompleteListener {
-                    imageProxy.close()
-                }
-        }
+
+
+//            imageProxy.close()
+
+//            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+//
+//            poseDetector.process(image)
+//                .addOnSuccessListener {
+//                    listener(it, image)
+//                }
+//                .addOnFailureListener {
+//                    Log.d("pose detection", "failed")
+//                }
+//                .addOnCompleteListener {
+//                    imageProxy.close()
+//                }
+//        }
     }
 }

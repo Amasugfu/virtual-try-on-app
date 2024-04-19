@@ -5,9 +5,9 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.amasugfu.vton.R
 import com.amasugfu.vton.view.google.GraphicOverlay
 import com.amasugfu.vton.viewmodel.PoseDetectionViewModel
 
@@ -28,7 +29,7 @@ fun PoseDetectionScreen() {
     val graphicOverlay = GraphicOverlay(context, null)
 
     Box {
-//        Text("Hi")
+        // camera preview
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
@@ -46,6 +47,7 @@ fun PoseDetectionScreen() {
             }
         )
 
+        // graphic overlay
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
@@ -53,16 +55,11 @@ fun PoseDetectionScreen() {
             }
         )
 
-        GarmentView3DOverlay()
-
-        Column {
-            IconButton(
-                onClick = { viewModel.flipCamera() },
-                modifier = Modifier.size(80.dp),
-                content = {
-
-                }
-            )
+        // control buttons
+        Column(
+            modifier = Modifier.align(Alignment.BottomEnd).padding(25.dp)
+        ) {
+            RoundIconButton(viewModel::flipCamera, R.drawable.ic_flip_camera)
         }
     }
 }

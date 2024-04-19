@@ -18,7 +18,7 @@ import torch
 
 def project_rays(mesh, 
                  grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
-                 fov: Tuple[float, float] = (60.0, 60.0), 
+                 fov: Tuple[float, float] = (np.pi / 3, np.pi/3), 
                  z: float = 1.0,
                  max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps):
     """
@@ -31,7 +31,7 @@ def project_rays(mesh,
     grid[:, 0] -= grid_dim[0]
     grid[:, 1] -= grid_dim[1]
     
-    sep = np.tan(np.deg2rad(fov) / 2) / grid_dim      # separation per pixel in real coords
+    sep = np.tan(np.asarray(fov) / 2) / grid_dim      # separation per pixel in real coords
     directions = np.concatenate([grid * sep, np.full((grid.shape[0], 1), -z)], axis=1)
     origins = np.zeros(directions.shape)
     origins[:, -1] = z
@@ -106,11 +106,11 @@ def make_peelmaps(peelmaps,
     return pm
 
 
-def render_front(mesh):
+def render_front(mesh, yfov=np.pi/3, pose=None):
     pr_mesh = pyrender.Mesh.from_trimesh(mesh)
     scene = pyrender.Scene(ambient_light=[1., 1., 1.], bg_color=[0, 0, 0])
-    scene.add(pr_mesh)
-    camera = pyrender.PerspectiveCamera(yfov=np.pi/3, aspectRatio=1)
+    scene.add(pr_mesh, pose=pose)
+    camera = pyrender.PerspectiveCamera(yfov=yfov, aspectRatio=1)
     camera_pose = np.array([
         [1, 0, 0, 0],
         [0 ,1, 0, 0],
@@ -158,9 +158,12 @@ def process_poses(
     src_dict: str|Any,
     smpl_path: str,
     grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
-    fov: Tuple[float, float] = (60.0, 60.0), 
+    fov: Tuple[float, float] = (np.pi / 3, np.pi / 3), 
     z: float = 1.0,
     max_hits: int = DEFAULT_XCLOTH_SETTINGS.n_peelmaps,
+    return_joints: bool = False,
+    smpl_vert: np.ndarray | None = None,
+    smpl_face: np.ndarray | None = None,
 ):
     """
     process the pose into peelmap representation
@@ -169,34 +172,42 @@ def process_poses(
     
     @return: depth peelmaps
     """
-    if type(src_dict) == str:
+    if isinstance(src_dict, str):
         with open(src_dict, "rb") as f:
             src_dict = pickle.load(f)
-
-    smpl_layer = SMPL_Layer(
-        center_idx=0,
-        gender='male',
-        model_root=smpl_path,
-    )
 
     pose = src_dict['pose']
     trans = src_dict['trans']
     scale = src_dict['scale']
+    
+    if smpl_vert is None or smpl_face is None:
 
-    fin_pose= torch.FloatTensor(pose).unsqueeze(0)
-    # fin_pose = fin_pose.cuda()
+        smpl_layer = SMPL_Layer(
+            center_idx=0,
+            gender='male',
+            model_root=smpl_path,
+        )
 
-    fin_shape = torch.zeros((1,10)).float()
-    fin_shape = fin_shape.cuda()
+        fin_pose= torch.FloatTensor(pose).unsqueeze(0)
+        # fin_pose = fin_pose.cuda()
 
-    ret_verts, _ = smpl_layer(fin_pose, fin_shape)
+        fin_shape = torch.zeros((1,10)).float()
+        fin_shape = fin_shape.cuda()
 
-    ret_verts = ret_verts.detach().cpu().numpy()[0]
+        ret_verts, ret_joints = smpl_layer(fin_pose, fin_shape)
+        smpl_vert = ret_verts.detach().cpu().numpy()[0]
 
-    trans_verts = ret_verts * scale + trans
-
-    mesh = trimesh.Trimesh(vertices=trans_verts, faces=smpl_layer.th_faces.detach().cpu().numpy())
+    trans_verts = smpl_vert * scale + trans
+    mesh = trimesh.Trimesh(
+        vertices=trans_verts, 
+        faces=smpl_layer.th_faces.detach().cpu().numpy() if smpl_face is None else smpl_face
+    )
+    
     peelmaps = project_rays(mesh, grid_dim, fov, z, max_hits)
     pm_depth = make_peelmaps(peelmaps, mesh, grid_dim, target=["depth"])["depth"]
     
-    return pm_depth
+    if return_joints:
+        v_joints = ret_joints * scale + trans
+        return pm_depth, v_joints
+    else:
+        return pm_depth

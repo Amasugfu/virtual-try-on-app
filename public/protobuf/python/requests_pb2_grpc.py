@@ -14,9 +14,9 @@ class GarmentReconstructionStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.getModel3D = channel.unary_unary(
-                '/GarmentReconstruction/getModel3D',
-                request_serializer=requests__pb2.Image2D.SerializeToString,
+        self.reconstruct = channel.unary_stream(
+                '/GarmentReconstruction/reconstruct',
+                request_serializer=requests__pb2.GarmentReconstructionRequest.SerializeToString,
                 response_deserializer=requests__pb2.Model3D.FromString,
                 )
 
@@ -24,7 +24,7 @@ class GarmentReconstructionStub(object):
 class GarmentReconstructionServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def getModel3D(self, request, context):
+    def reconstruct(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -33,9 +33,9 @@ class GarmentReconstructionServicer(object):
 
 def add_GarmentReconstructionServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'getModel3D': grpc.unary_unary_rpc_method_handler(
-                    servicer.getModel3D,
-                    request_deserializer=requests__pb2.Image2D.FromString,
+            'reconstruct': grpc.unary_stream_rpc_method_handler(
+                    servicer.reconstruct,
+                    request_deserializer=requests__pb2.GarmentReconstructionRequest.FromString,
                     response_serializer=requests__pb2.Model3D.SerializeToString,
             ),
     }
@@ -49,7 +49,7 @@ class GarmentReconstruction(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def getModel3D(request,
+    def reconstruct(request,
             target,
             options=(),
             channel_credentials=None,
@@ -59,14 +59,14 @@ class GarmentReconstruction(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/GarmentReconstruction/getModel3D',
-            requests__pb2.Image2D.SerializeToString,
+        return grpc.experimental.unary_stream(request, target, '/GarmentReconstruction/reconstruct',
+            requests__pb2.GarmentReconstructionRequest.SerializeToString,
             requests__pb2.Model3D.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
 
-class HumanReconsturctionStub(object):
+class PoseDetectionStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -75,42 +75,42 @@ class HumanReconsturctionStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.getModel3D = channel.unary_unary(
-                '/HumanReconsturction/getModel3D',
-                request_serializer=requests__pb2.Image2D.SerializeToString,
-                response_deserializer=requests__pb2.Model3D.FromString,
+        self.getPose = channel.unary_unary(
+                '/PoseDetection/getPose',
+                request_serializer=requests__pb2.ByteBuffer.SerializeToString,
+                response_deserializer=requests__pb2.FloatMat.FromString,
                 )
 
 
-class HumanReconsturctionServicer(object):
+class PoseDetectionServicer(object):
     """Missing associated documentation comment in .proto file."""
 
-    def getModel3D(self, request, context):
+    def getPose(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_HumanReconsturctionServicer_to_server(servicer, server):
+def add_PoseDetectionServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'getModel3D': grpc.unary_unary_rpc_method_handler(
-                    servicer.getModel3D,
-                    request_deserializer=requests__pb2.Image2D.FromString,
-                    response_serializer=requests__pb2.Model3D.SerializeToString,
+            'getPose': grpc.unary_unary_rpc_method_handler(
+                    servicer.getPose,
+                    request_deserializer=requests__pb2.ByteBuffer.FromString,
+                    response_serializer=requests__pb2.FloatMat.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'HumanReconsturction', rpc_method_handlers)
+            'PoseDetection', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class HumanReconsturction(object):
+class PoseDetection(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def getModel3D(request,
+    def getPose(request,
             target,
             options=(),
             channel_credentials=None,
@@ -120,8 +120,8 @@ class HumanReconsturction(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/HumanReconsturction/getModel3D',
-            requests__pb2.Image2D.SerializeToString,
-            requests__pb2.Model3D.FromString,
+        return grpc.experimental.unary_unary(request, target, '/PoseDetection/getPose',
+            requests__pb2.ByteBuffer.SerializeToString,
+            requests__pb2.FloatMat.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

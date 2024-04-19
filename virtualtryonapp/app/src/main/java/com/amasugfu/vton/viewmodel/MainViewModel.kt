@@ -1,16 +1,24 @@
 package com.amasugfu.vton.viewmodel
 
+import android.net.Uri
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import com.amasugfu.vton.data.repo.GarmentData
+import com.amasugfu.vton.data.repo.IGarmentRepository
+import com.amasugfu.vton.data.repo.ResourceType
 import com.amasugfu.vton.view.NavigationController
+import com.amasugfu.vton.view.theme.GarmentAlignmentNamespace
+import com.amasugfu.vton.view.theme.LiveCameraNamespace
+import com.amasugfu.vton.view.theme.PhotoPickerNamespace
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val navigationController: NavigationController
+    private val navigationController: NavigationController,
+    private val garmentRepository: IGarmentRepository
 ) : ViewModel() {
 
     enum class InputMode {
@@ -20,10 +28,10 @@ class MainViewModel @Inject constructor(
     }
 
     val inputMode: MutableState<InputMode> = mutableStateOf(InputMode.UPLOAD_IMAGE)
-    val inputValue: MutableLiveData<Any> by lazy { MutableLiveData<Any>() }
+    val resourceUri: MutableLiveData<Uri> by lazy { MutableLiveData() }
 
     fun openImageSelection() {
-        navigationController.navigateTo("PhotoPicker")
+        navigationController.navigateTo(PhotoPickerNamespace)
     }
 
     fun openModelSelection() {
@@ -31,7 +39,7 @@ class MainViewModel @Inject constructor(
     }
 
     fun openCamera() {
-        navigationController.navigateTo("Camera")
+        navigationController.navigateTo(LiveCameraNamespace)
     }
 
     fun onInputValueChanged() {
@@ -42,12 +50,17 @@ class MainViewModel @Inject constructor(
     }
 
     fun startImageAlignment() {
-        // TODO: add alignment window
-
-        navigationController.navigateTo("PoseDetection")
+        garmentRepository.pushDataTo(
+            GarmentData(resourceUri.value!!, ResourceType.IMAGE), GarmentAlignmentViewModel::class.java
+        )
+        navigationController.navigateTo(GarmentAlignmentNamespace)
     }
 
     fun startVTON() {
 
+    }
+
+    fun setResourceUri(uri: Uri) {
+        resourceUri.value = uri
     }
 }

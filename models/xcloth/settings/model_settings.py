@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Tuple
 
+import numpy as np
+
 @dataclass
 class xClothSettings:
     """
@@ -39,3 +41,10 @@ class xClothSettings:
 DEFAULT_XCLOTH_SETTINGS = xClothSettings()
 
     
+@dataclass
+class CameraSettings:
+    z: float = 1
+    fov: float | Tuple[float, float] = np.pi / 3
+    
+
+DEFAULT_CAMERA_SETTINGS = CameraSettings()

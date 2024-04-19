@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">virtual-try-on-app</string>
+    <string name="app_display_name">VTON.3D</string>
 </resources>

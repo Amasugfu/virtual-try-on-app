@@ -35,7 +35,7 @@ def main(args):
 
     from xcloth.train.data import MeshDataSet
     from xcloth.production import XCloth
-    from xcloth.train import train_model
+    from xcloth.train.trainer import train_model
     import torch
     torch.manual_seed(0)
     

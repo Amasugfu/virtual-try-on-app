@@ -1,7 +1,5 @@
 package com.amasugfu.vton.di
 
-import com.amasugfu.vton.data.DebugLocalGarmentModelRetriever
-import com.amasugfu.vton.data.IGarmentModelRetriever
 import com.amasugfu.vton.data.IPoseDetectionSession
 import com.amasugfu.vton.data.PoseDetectionSession
 import dagger.Binds
@@ -18,8 +16,8 @@ abstract class ViewModelModule {
     ): IPoseDetectionSession
 
     // debug
-    @Binds
-    abstract fun bindGarmentModelRetriever(
-        localGarmentModelRetriever: DebugLocalGarmentModelRetriever
-    ): IGarmentModelRetriever
+//    @Binds
+//    abstract fun bindGarmentModelRetriever(
+//        localGarmentModelRetriever: DebugLocalGarmentModelRetriever
+//    ): IResourceRetriever
 }
