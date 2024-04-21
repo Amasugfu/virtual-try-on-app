@@ -378,7 +378,7 @@ class SMPL(nn.Module):
             num_repeats = int(batch_size / betas.shape[0])
             betas = betas.expand(num_repeats, -1)
 
-        vertices, joints, T = lbs(
+        vertices, joints, T, pose_offsets = lbs(
             betas,
             full_pose,
             self.v_template,
@@ -408,4 +408,4 @@ class SMPL(nn.Module):
             full_pose=full_pose if return_full_pose else None,
         )
 
-        return output, T
+        return output, T, pose_offsets

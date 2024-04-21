@@ -12,6 +12,15 @@
             "module": "server",
             "console": "integratedTerminal",
             "args": "-c models/res/xcloth/07-02-2024/xcloth_tm.pt -p 50000"
+        },
+        {
+            "name": "Python Debugger: Current File",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "subProcess": true
         }
     ]
 }

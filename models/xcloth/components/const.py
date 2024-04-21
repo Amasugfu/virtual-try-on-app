@@ -1,0 +1,30 @@
+JOINTS_MAP = {
+    "root": -1,
+    "Pelvis": 0,
+    "L_Hip": 1,
+    "L_Knee": 4,
+    "L_Ankle": 7,
+    "L_Foot": 10,
+    "R_Hip": 2,
+    "R_Knee": 5,
+    "R_Ankle": 8,
+    "R_Foot": 11,
+    "Spine1": 3,
+    "Spine2": 6,
+    "Spine3": 9,
+    "Neck": 12,
+    "Head": 15,
+    "L_Collar": 13,
+    "L_Shoulder": 16,
+    "L_Elbow": 18,
+    "L_Wrist": 20,
+    "L_Hand": 22,
+    "R_Collar": 14,
+    "R_Shoulder": 17,
+    "R_Elbow": 19,
+    "R_Wrist": 21,
+    "R_Hand": 23,
+}
+
+
+SMPL_COMMON_SCALE = 0.48360792870424724

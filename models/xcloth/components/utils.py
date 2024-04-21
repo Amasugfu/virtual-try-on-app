@@ -1,14 +1,18 @@
 import numpy as np
 import open3d as o3d
 from scipy.ndimage import generic_filter
+import torch
 
 import copy
 from typing import Tuple, Any
 
 from ...smplx_.lbs import lbs
 from ...smplx_.body_models import SMPL
+from .const import JOINTS_MAP
 
-import torch
+import bpy
+import bmesh
+
 
 def create_idx_mat(size):
     """
@@ -164,17 +168,17 @@ def psr(pcd, depth):
     return mesh   
 
             
-def pose_smpl(pose, gender="male", return_T_only=False, return_faces=True):
+def pose_smpl(pose, gender="male", return_T_only=False, return_mesh=False, return_faces=False, device="cuda"):
     smpl = SMPL(model_path="models/smpl", gender=gender)
     with torch.no_grad():
-        fin_pose= torch.FloatTensor(pose).unsqueeze(0)
-        smpl_output, T = smpl(
+        fin_pose= torch.FloatTensor(pose).unsqueeze(0).to(device=device)
+        smpl_output, T, pose_offsets = smpl(
             global_orient=fin_pose[:, :3], 
             body_pose=fin_pose[:, 3:]
         )
         
         if return_T_only:
-            return T
+            return T, pose_offsets
 
         ret_verts = smpl_output.vertices
         ret_joints = smpl_output.joints
@@ -182,10 +186,101 @@ def pose_smpl(pose, gender="male", return_T_only=False, return_faces=True):
         trans_verts = ret_verts.squeeze() #* scale + trans
         trans_joints = ret_joints.squeeze() #* scale + trans
         
-        ret = [trans_verts, trans_joints, T]
-        if return_faces: 
-            ret.append(smpl.faces)
+        if return_mesh:
+            smpl_mesh = o3d.geometry.TriangleMesh(
+                vertices=o3d.utility.Vector3dVector(trans_verts.detach().cpu()),
+                triangles=o3d.utility.Vector3iVector(smpl.faces.detach().cpu()),
+            )
+            return smpl_mesh, T, pose_offsets
         
-        return tuple(ret)
+        ret = (trans_verts, trans_joints, T, pose_offsets)
+        if return_faces: 
+            return *ret, smpl.faces
+        else:
+            return ret
     
     
+def o3d_to_skinned_glb(mesh, weights, export_path, armature_path="models/data/test_data/assets/smpl_male_blend2.glb"):
+    bpy.ops.wm.read_factory_settings(use_empty=True)
+    bpy.ops.import_scene.gltf(filepath=armature_path)
+
+    # bpy.data.objects["SMPL-mesh-male"].select_set(True)
+    obj = bpy.context.scene.objects["SMPL-mesh-male"]
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+
+    # bmesh.ops.delete(bm, geom=bm.verts)
+    vertices = np.array(mesh.vertices)
+    vertices[:, -1] *= -1
+    vertices[:, [1, -1]] = vertices[:, [-1, 1]]
+    
+    faces = np.asarray(mesh.triangles)
+    
+    colors = np.asarray(mesh.vertex_colors)
+
+    # add vertices and faces
+    bm_verts = []
+    bm_verts_id = []
+    for v in vertices:
+        vert = bm.verts.new(v)
+        vert.index = len(bm.verts)
+        bm_verts_id.append(vert.index)
+        bm_verts.append(vert)
+        
+    for f in faces:
+        bm.faces.new([
+            bm_verts[f[0]],
+            bm_verts[f[1]],
+            bm_verts[f[2]]
+        ])
+        
+    bm.to_mesh(obj.data)  
+    bm.free()
+
+    # add sknning weights
+    for g in obj.vertex_groups:
+        i = JOINTS_MAP[g.name]
+        if i == -1:
+            continue
+        w = weights[:, i]
+        for i, v_id in enumerate(bm_verts_id):
+            obj.vertex_groups[g.name].add([v_id], w[i], "REPLACE")
+
+    # add color / texture    
+    color_layer_name = "vertex_colors"
+    obj.data.vertex_colors.new(name=color_layer_name)
+    color_layer = obj.data.vertex_colors[color_layer_name]
+
+    inverse_id_map = { v: i for i , v in enumerate(bm_verts_id)}
+    for poly in obj.data.polygons:
+        for vert_i_poly, vert_i_mesh in enumerate(poly.vertices):  
+            if vert_i_mesh in inverse_id_map.keys():
+                vert_i_loop = poly.loop_indices[vert_i_poly]
+                color_layer.data[vert_i_loop].color = (*colors[inverse_id_map[vert_i_mesh]], 1.)
+        
+    # reference from: https://stackoverflow.com/questions/67854896/how-do-i-set-the-base-colour-of-a-material-to-equal-vertex-colours-in-blender-2
+
+    material_name = "material0"
+    material = bpy.data.materials.new(name=material_name)
+    material.use_nodes = True
+    obj.data.materials.append(material)
+
+    # Get node tree from the material
+    nodes = material.node_tree.nodes
+    principled_bsdf_node = nodes.get("Principled BSDF")
+
+    # Get Vertex Color Node, create it if it does not exist in the current node tree
+    vertex_color_node = nodes.new(type="ShaderNodeVertexColor")
+
+    # Set the vertex_color layer we created at the beginning as input
+    vertex_color_node.layer_name = color_layer_name
+
+    # Link Vertex Color Node "Color" output to Principled BSDF Node "Base Color" input
+    links = material.node_tree.links
+    links.new(vertex_color_node.outputs[0], principled_bsdf_node.inputs[0])
+
+    obj.data.update()
+
+    bpy.ops.export_scene.gltf(filepath=export_path)

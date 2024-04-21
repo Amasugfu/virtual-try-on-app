@@ -6,8 +6,6 @@ import cv2
 import os
 import tempfile
 
-import trimesh.creation
-
 from .settings.model_settings import (
     xClothSettings,
     DEFAULT_XCLOTH_SETTINGS,
@@ -20,6 +18,7 @@ from .components.reconstruct import GarmentModel3D
 
 from .train.preprocessing import process_poses, render_front
 from .components.utils import compute_pixsep, pose_smpl, create_o3d_mesh, create_o3d_pcd
+from .components.const import SMPL_COMMON_SCALE
 
 
 class XCloth(nn.Module):
@@ -55,9 +54,7 @@ class XCloth(nn.Module):
         return y
 
     def reconstruct3d(
-        self, result, batch=1, 
-        mask: np.ndarray | None = None, 
-        path: str | None = None
+        self, result, batch=1, mask: np.ndarray | None = None, path: str | None = None
     ):
         mesh = GarmentModel3D.from_tensor_dict(result, batch)
 
@@ -98,7 +95,7 @@ class XCloth(nn.Module):
 class Pipeline:
     # train data scale
     # this is used for fitting the smpl model into the 512 x 512 frame
-    SMPL_REFERENCE_SCALE = 0.48360792870424724 
+    SMPL_REFERENCE_SCALE = SMPL_COMMON_SCALE
 
     def __init__(
         self,
@@ -134,20 +131,26 @@ class Pipeline:
             "scale": self.SMPL_REFERENCE_SCALE,
             "pose": pose.flatten(),
         }
-        
-        fov = (self.camera_settings.fov, self.camera_settings.fov) if isinstance(self.camera_settings.fov, float) else self.camera_settings.fov
-        
+
+        fov = (
+            (self.camera_settings.fov, self.camera_settings.fov)
+            if isinstance(self.camera_settings.fov, float)
+            else self.camera_settings.fov
+        )
+
         pm_depth = process_poses(
             src_dict,
             self.smpl_root,
             fov=fov,
             z=self.camera_settings.z,
-            smpl_vert=verts -joints[0],
-            smpl_face=faces
+            smpl_vert=verts - joints[0],
+            smpl_face=faces,
         )
         return pm_depth, joints[0].detach().cpu().numpy()
 
-    def transform_image(self, img, center, trans, input_scale, output_scale, corner1, corner2):
+    def transform_image(
+        self, img, center, trans, input_scale, output_scale, corner1, corner2
+    ):
         size_h, size_w = self._model.dims
         size = np.array([size_w, size_h])
         sep = compute_pixsep(size, self.camera_settings.fov, self.camera_settings.z)
@@ -158,12 +161,12 @@ class Pipeline:
             return c.astype(int)
 
         # pose = torch.zeros(72)
-        
+
         # mesh = create_o3d_mesh(create_o3d_pcd(verts*output_scale), faces)
 
         corner1 = __trans_helper(corner1)
         corner2 = __trans_helper(corner2)
-        
+
         # import trimesh
         # s = np.abs(corner1 - corner2)
         # mid = (corner1 + corner2) / 2
@@ -174,20 +177,20 @@ class Pipeline:
         #     [0, 0, 1, mid[2]],
         #     [0, 0, 0, 1]
         # ]))
-        
+
         # # smpl = trimesh.Trimesh(vertices=verts*output_scale, faces=faces)
         # # smpl = render_front(smpl)
-        
+
         # return tmp
 
         img_size = np.abs(corner2 - corner1 + 1).astype(int)
         img = np.moveaxis(cv2.resize(img, img_size), -1, 0)
         padded = np.zeros([3, size_w, size_h])
-        
+
         y = corner1[1]
         x = corner1[0]
-        
-        padded[:, y:y + img_size[1], x:x + img_size[0]] = img
+
+        padded[:, y : y + img_size[1], x : x + img_size[0]] = img
         return padded
 
     def reconstruct(self, x_img, x_smpl):
@@ -203,9 +206,9 @@ class Pipeline:
         with torch.no_grad():
             result = self._model(x_img, x_smpl)
             _ = self._model.reconstruct3d(
-                result=result, 
+                result=result,
                 mask=np.all(x_img.cpu().numpy(), axis=0),
-                path=os.path.join(tmp_dir.name, "result")
+                path=os.path.join(tmp_dir.name, "result"),
             )
 
         with open(f"{tmp_dir.name}/result.glb", "rb") as f:
