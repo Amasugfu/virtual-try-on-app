@@ -1,6 +1,5 @@
 package com.amasugfu.vton.data.repo
 
-import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import com.amasugfu.vton.data.repo.IGarmentRepository.Companion.DEFAULT_MAX_QUEUE_SIZE
@@ -23,6 +22,7 @@ interface IGarmentRepository {
         val DEFAULT_MAX_QUEUE_SIZE = 1
     }
 
+    fun getResourceRetriever(): IResourceRetriever<ByteBuffer>
     suspend fun loadResource(data: Any?): ByteBuffer
     fun pushDataTo(data: GarmentData, viewModelClass: Class<out ViewModel>)
     fun getData(viewModelClass: Class<out ViewModel>): GarmentData?
@@ -33,8 +33,7 @@ interface IGarmentRepository {
 }
 
 class GarmentRepository @Inject constructor(
-    application: Application,
-    val resourceRetriever: IResourceRetriever<ByteBuffer>
+    @RuntimeReconstruction private val resourceRetriever: IResourceRetriever<ByteBuffer>
 ) : IGarmentRepository {
 
     // to communicate between view models
@@ -42,6 +41,10 @@ class GarmentRepository @Inject constructor(
 
     // saved state
     private val loadedResources: HashMap<String, ByteBuffer> = HashMap()
+
+    override fun getResourceRetriever(): IResourceRetriever<ByteBuffer> {
+        return resourceRetriever
+    }
 
     override suspend fun loadResource(data: Any?): ByteBuffer = resourceRetriever.postRetrievalRequest(data)
 

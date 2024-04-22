@@ -5,13 +5,20 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Attach using Process Id",
+            "type": "debugpy",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        },
+        {
             "name": "server",
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "module": "server",
             "console": "integratedTerminal",
-            "args": "-c models/res/xcloth/07-02-2024/xcloth_tm.pt -p 50000"
+            "args": "-c models/res/xcloth/07-02-2024/xcloth_tm.pt -p 50000",
+            "subProcess": true
         },
         {
             "name": "Python Debugger: Current File",

@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0erequests.proto\"6\n\x06IntMat\x12\x0f\n\x07num_dim\x18\x01 \x01(\x05\x12\r\n\x05shape\x18\x02 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x03(\x05\"8\n\x08\x46loatMat\x12\x0f\n\x07num_dim\x18\x01 \x01(\x05\x12\r\n\x05shape\x18\x02 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x03(\x02\"\x1c\n\nByteBuffer\x12\x0e\n\x06\x62uffer\x18\x01 \x03(\x0c\"P\n\x07Model3D\x12\x0c\n\x04size\x18\x01 \x01(\x03\x12\x0c\n\x04\x64\x61ta\x18\x02 \x01(\x0c\x12\x1d\n\x07texture\x18\x03 \x01(\x0b\x32\x07.IntMatH\x00\x88\x01\x01\x42\n\n\x08_texture\"W\n\x1cGarmentReconstructionRequest\x12\x1e\n\x0bgarment_img\x18\x01 \x01(\x0b\x32\t.FloatMat\x12\x17\n\x04pose\x18\x02 \x01(\x0b\x32\t.FloatMat2S\n\x15GarmentReconstruction\x12:\n\x0breconstruct\x12\x1d.GarmentReconstructionRequest\x1a\x08.Model3D\"\x00\x30\x01\x32\x34\n\rPoseDetection\x12#\n\x07getPose\x12\x0b.ByteBuffer\x1a\t.FloatMat\"\x00\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0erequests.proto\"6\n\x06IntMat\x12\x0f\n\x07num_dim\x18\x01 \x01(\x05\x12\r\n\x05shape\x18\x02 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x03(\x05\"8\n\x08\x46loatMat\x12\x0f\n\x07num_dim\x18\x01 \x01(\x05\x12\r\n\x05shape\x18\x02 \x03(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x03(\x02\"\x1c\n\nByteBuffer\x12\x0e\n\x06\x62uffer\x18\x01 \x03(\x0c\"%\n\x07Model3D\x12\x0c\n\x04size\x18\x01 \x01(\x05\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\x0c\"W\n\x1cGarmentReconstructionRequest\x12\x1e\n\x0bgarment_img\x18\x01 \x01(\x0b\x32\t.FloatMat\x12\x17\n\x04pose\x18\x02 \x01(\x0b\x32\t.FloatMat2S\n\x15GarmentReconstruction\x12:\n\x0breconstruct\x12\x1d.GarmentReconstructionRequest\x1a\x08.Model3D\"\x00\x30\x01\x32\x34\n\rPoseDetection\x12#\n\x07getPose\x12\x0b.ByteBuffer\x1a\t.FloatMat\"\x00\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -28,11 +28,11 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_BYTEBUFFER']._serialized_start=132
   _globals['_BYTEBUFFER']._serialized_end=160
   _globals['_MODEL3D']._serialized_start=162
-  _globals['_MODEL3D']._serialized_end=242
-  _globals['_GARMENTRECONSTRUCTIONREQUEST']._serialized_start=244
-  _globals['_GARMENTRECONSTRUCTIONREQUEST']._serialized_end=331
-  _globals['_GARMENTRECONSTRUCTION']._serialized_start=333
-  _globals['_GARMENTRECONSTRUCTION']._serialized_end=416
-  _globals['_POSEDETECTION']._serialized_start=418
-  _globals['_POSEDETECTION']._serialized_end=470
+  _globals['_MODEL3D']._serialized_end=199
+  _globals['_GARMENTRECONSTRUCTIONREQUEST']._serialized_start=201
+  _globals['_GARMENTRECONSTRUCTIONREQUEST']._serialized_end=288
+  _globals['_GARMENTRECONSTRUCTION']._serialized_start=290
+  _globals['_GARMENTRECONSTRUCTION']._serialized_end=373
+  _globals['_POSEDETECTION']._serialized_start=375
+  _globals['_POSEDETECTION']._serialized_end=427
 # @@protoc_insertion_point(module_scope)

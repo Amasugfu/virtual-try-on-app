@@ -32,6 +32,7 @@ abstract class ApplicationInterfaceModule {
     ): IGarmentRepository
 
     @Singleton
+    @RuntimeReconstruction
     @Binds
     abstract fun bindGarmentRetriever(
         remoteGarmentReconstruction: RemoteGarmentReconstruction

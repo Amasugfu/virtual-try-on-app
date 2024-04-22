@@ -18,9 +18,8 @@ message ByteBuffer {
 
 // in .glb format
 message Model3D {
-    int64 size = 1;
-    bytes data = 2;
-    optional IntMat texture = 3;
+    int32 size = 1;
+    bytes data = 3;
 }
 
 message GarmentReconstructionRequest {

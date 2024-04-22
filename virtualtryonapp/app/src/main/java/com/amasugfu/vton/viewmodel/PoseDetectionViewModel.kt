@@ -14,9 +14,10 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.amasugfu.vton.data.PoseDetectionSession
+import com.amasugfu.vton.data.domain.GetAssetsUseCase
+import com.amasugfu.vton.data.repo.IGarmentRepository
 import com.amasugfu.vton.data.repo.RemotePoseReconstruction
 import com.amasugfu.vton.view.google.GraphicOverlay
 import com.amasugfu.vton.view.google.PoseGraphic
@@ -29,8 +30,13 @@ import javax.inject.Inject
 @HiltViewModel
 class PoseDetectionViewModel @Inject constructor(
     val poseDetectionSession: PoseDetectionSession,
-    val remotePoseReconstruction: RemotePoseReconstruction
-) : ViewModel() {
+    val remotePoseReconstruction: RemotePoseReconstruction,
+    val garmentRepository: IGarmentRepository,
+    getAssetsUseCase: GetAssetsUseCase
+) : Model3DViewModel(
+    garmentRepository.getResourceRetriever(),
+    getAssetsUseCase,
+) {
 
     lateinit var cameraController: LifecycleCameraController
     var cameraSelector: CameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA

@@ -149,6 +149,7 @@ class GarmentAlignmentViewModel @Inject constructor(
             }
             catch (e: Exception) {
                 showAlert.value = true
+                e.printStackTrace()
             }
         }
     }
@@ -188,8 +189,6 @@ class GarmentAlignmentViewModel @Inject constructor(
                 callback
             )
         }
-
-//        navigationController.navigateTo("PoseDetection")
     }
 
     private fun computeWorldPosition(fragCoords: FloatArray): Float4 {
@@ -217,7 +216,20 @@ class GarmentAlignmentViewModel @Inject constructor(
     }
 
     fun confirmResult() {
-
+        loading.value = true
+        loadingJob = viewModelScope.launch {
+            try {
+                val res = garmentRepo.loadResource(
+                    RemoteGarmentReconstruction.RequestBuilder().setWeightTransfer(true).build()
+                )
+                garmentRepo["final"] = res
+                navigationController.navigateTo("PoseDetection")
+            }
+            catch (e: Exception) {
+                e.printStackTrace()
+            }
+            loading.value = false
+        }
     }
 
     fun resetPose() {
@@ -227,7 +239,7 @@ class GarmentAlignmentViewModel @Inject constructor(
         poseRightLeg.value = 0f
     }
 
-    fun poseSMPL() {
+    private fun poseSMPL() {
         modelViewer.asset?.apply {
             val transformManager = modelViewer.engine.transformManager
             jointIDs.forEach { (id, state) ->
@@ -268,6 +280,7 @@ class GarmentAlignmentViewModel @Inject constructor(
 
     fun showResult() {
         resultShowCase.value = true
+        modelViewer.reset()
         modelViewer.switchGesture(orbit = true)
     }
 }

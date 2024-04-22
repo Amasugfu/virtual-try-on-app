@@ -10,8 +10,20 @@ from ..proto import (
 import cv2
 from romp import ROMP, romp_settings
 
+from dataclasses import dataclass
+from typing import Any
+
 from .utils import protomat2numpy
 from models.xcloth.production import Pipeline
+from models.rigging.utils import paint_mesh_to_glb
+
+
+@dataclass
+class UserCache:
+    client_id: str
+    input_pose: np.ndarray
+    output_mesh: Any
+
 
 class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServicer):
     CHUNK_SIZE = 1024*1024 # 1 MB
@@ -19,19 +31,56 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
     def __init__(self, pipeline: Pipeline) -> None:
         super().__init__()
         self._pipeline = pipeline
+        self._client_cache = {}
+        
+    def transfer_weights(self, client_id):
+        #############################################################
+        ### debug block
+        with open("debug_results/result_rigged.glb", "rb") as f:
+            return f.read()
+        #############################################################
+        
+        cache = self._client_cache[client_id]
+        return paint_mesh_to_glb(cache.output_mesh, cache.input_pose)
     
     def reconstruct(self, request, context):
-        img = np.flip(protomat2numpy(request.garment_img), axis=0)
+        client_id = context.peer()
+        
         pose = protomat2numpy(request.pose)
         
-        gltf = self._pipeline(img, pose)
+        if pose.size == 1:
+            # confirm cache               
+            if pose.item() > 0:
+                gltf = self.transfer_weights(client_id)
+            elif client_id in self._client_cache:
+                del self._client_cache[client_id]
+        else:
+            # reconstruct
+            img = np.flip(protomat2numpy(request.garment_img), axis=0)
+            smpl_pose = self.to_smpl_pose(pose)
+            gltf, mesh = self._pipeline(img, pose, smpl_pose)
+            self._client_cache[client_id] = UserCache(client_id=client_id, input_pose=smpl_pose, output_mesh=mesh)
         
-        for i in range(0, len(gltf), self.CHUNK_SIZE):
+        # yield stream
+        size = len(gltf)
+        i = 0
+        while size > 0:
             yield requests_pb2.Model3D(
                 size = len(gltf),
                 data = gltf[i:i + self.CHUNK_SIZE]   
             )
-    
+            i += self.CHUNK_SIZE
+            size -= self.CHUNK_SIZE
+            
+    @staticmethod
+    def to_smpl_pose(pose):
+        smpl_pose = np.zeros((24, 3))
+        smpl_pose[16, 2] = pose[-4]
+        smpl_pose[17, 2] = pose[-3]
+        smpl_pose[1, 2] = pose[-2]
+        smpl_pose[2, 2] = pose[-1]
+        smpl_pose = np.deg2rad(smpl_pose) * -1
+        return smpl_pose
     
 class PoseDetectionServicer(requests_pb2_grpc.PoseDetectionServicer):
     def __init__(self, romp=ROMP(romp_settings(["--mode=webcam"]))) -> None:

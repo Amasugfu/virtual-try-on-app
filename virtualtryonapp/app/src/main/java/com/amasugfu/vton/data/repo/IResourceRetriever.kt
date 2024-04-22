@@ -50,6 +50,8 @@ class RemoteGarmentReconstruction @Inject constructor(
     protected lateinit var stub: GarmentReconstructionGrpcKt.GarmentReconstructionCoroutineStub
 
     fun connect() {
+        if (::channel.isInitialized) return
+
         val preferences = getSharedPreferenceUseCase.execute()
         val host = GetSharedPreferenceUseCase.getHost(preferences)
         val port = GetSharedPreferenceUseCase.getPort(preferences)
@@ -59,7 +61,7 @@ class RemoteGarmentReconstruction @Inject constructor(
     }
 
     class RequestBuilder {
-        val reqBuilder = GarmentReconstructionRequest.newBuilder()
+        private val reqBuilder = GarmentReconstructionRequest.newBuilder()
 
         fun supplyImage(bitmap: Bitmap): RequestBuilder {
             val mat = floatMat {
@@ -97,6 +99,18 @@ class RemoteGarmentReconstruction @Inject constructor(
             return this
         }
 
+        fun setWeightTransfer(accept: Boolean): RequestBuilder {
+            reqBuilder.clearGarmentImg()
+            reqBuilder.clearPose()
+
+            reqBuilder.setGarmentImg(floatMat {  })
+            reqBuilder.setPose(floatMat {
+                this.data.add(if (accept) 1f else 0f)
+            })
+
+            return this
+        }
+
         fun build(): GarmentReconstructionRequest {
             return reqBuilder.build()
         }
@@ -105,10 +119,24 @@ class RemoteGarmentReconstruction @Inject constructor(
     override suspend fun postRetrievalRequest(data: Any?): ByteBuffer {
         // call remote service
         connect()
-        val bytes = stub.withDeadlineAfter(3, TimeUnit.MINUTES)
-            .reconstruct(data as GarmentReconstructionRequest)
 
-        return ByteBuffer.wrap(byteArrayOf())
+        var buffer: ByteArray? = null
+        var i = 0
+
+        stub.withDeadlineAfter(3, TimeUnit.MINUTES)
+            .reconstruct(data as GarmentReconstructionRequest)
+            .collect { model3D ->
+                if (buffer == null) {
+                    buffer = ByteArray(model3D.size)
+                }
+
+                model3D.data.copyTo(buffer, i)
+                i += model3D.data.size()
+            }
+
+        while (buffer == null || buffer!!.size > i) {}
+
+        return ByteBuffer.wrap(buffer!!)
     }
 }
 

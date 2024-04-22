@@ -352,7 +352,8 @@ class GarmentModel3D:
             sampler_dilation,
         )
         
-        mesh = map_texture(meshes, refined, self.pm_rgb)
+        # mesh = map_texture(meshes, refined, self.pm_rgb)
+        mesh = np.sum(meshes) + refined
         
         mesh = mesh.filter_smooth_taubin(smooth_iter, smooth_lambda, smooth_mu)
         mesh.remove_unreferenced_vertices()
