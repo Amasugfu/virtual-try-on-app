@@ -22,7 +22,7 @@ open class Model3DViewModel(
 
     protected lateinit var choreographer: Choreographer
     protected lateinit var modelViewer: ModelViewer
-    var allowOrbit = true
+    var allowMove = true
 
     protected open val preRenderTask: () -> Unit = {}
 
@@ -39,7 +39,7 @@ open class Model3DViewModel(
         choreographer = Choreographer.getInstance()
         modelViewer = ModelViewer(surfaceView)
         surfaceView.setOnTouchListener { v, event ->
-            if (allowOrbit) modelViewer.onTouchEvent(event)
+            if (allowMove) modelViewer.onTouchEvent(event)
             true
         }
     }

@@ -131,10 +131,10 @@ class Pipeline:
             else self.camera_settings.fov
         )
         
-        #############################################################
-        ### debug block
-        return 0, joints[0].detach().cpu().numpy()
-        #############################################################
+        # #############################################################
+        # ### debug block
+        # return 0, joints[0].detach().cpu().numpy()
+        # #############################################################
 
         pm_depth = process_poses(
             src_dict,
@@ -155,13 +155,13 @@ class Pipeline:
 
         def __trans_helper(c):
             c = ((c - trans) / input_scale - center) * self.SMPL_REFERENCE_SCALE
-            c = size // 2 + np.round(c[:-1] / sep)
+            c = np.clip(size // 2 + np.round(c[:-1] / sep), 0, None)
             return c.astype(int)
 
         corner1 = __trans_helper(corner1)
         corner2 = __trans_helper(corner2)
 
-        img_size = np.abs(corner2 - corner1 + 1).astype(int)
+        img_size = np.clip(np.abs(corner2 - corner1 + 1).astype(int), None, size)
         img = np.moveaxis(cv2.resize(img, img_size), -1, 0)
         padded = np.zeros([3, size_w, size_h])
 
@@ -172,19 +172,19 @@ class Pipeline:
         return padded
 
     def reconstruct(self, x_img, x_smpl, center):
-        #############################################################
-        ### debug block
-        with open("debug_results/result.glb", "rb") as glb:
-            v = np.load("debug_results/v.npy")
-            f = np.load("debug_results/f.npy")
-            c = np.load("debug_results/c.npy")
-            mesh = o3d.geometry.TriangleMesh(
-                vertices=o3d.utility.Vector3dVector(v),
-                triangles=o3d.utility.Vector3iVector(f)
-            )
-            mesh.vertex_colors = o3d.utility.Vector3dVector(c)
-            return glb.read(), mesh
-        #############################################################
+        # #############################################################
+        # ### debug block
+        # with open("debug_results/result.glb", "rb") as glb:
+        #     v = np.load("debug_results/v.npy")
+        #     f = np.load("debug_results/f.npy")
+        #     c = np.load("debug_results/c.npy")
+        #     mesh = o3d.geometry.TriangleMesh(
+        #         vertices=o3d.utility.Vector3dVector(v),
+        #         triangles=o3d.utility.Vector3iVector(f)
+        #     )
+        #     mesh.vertex_colors = o3d.utility.Vector3dVector(c)
+        #     return glb.read(), mesh
+        # #############################################################
         
         x_img = torch.as_tensor(x_img, dtype=torch.float32).to(device=self._device)
         x_smpl = (
@@ -207,7 +207,7 @@ class Pipeline:
         o3d_to_skinned_glb(mesh, export_folder=tmp_dir.name, armature_path=None)
 
         with open(f"{tmp_dir.name}/result.glb", "rb") as f:
-            return f.read()
+            return f.read(), mesh
 
     def __call__(self, x_img, x_pose, smpl_pose):       
         pm_depth, center = self.compute_smpl_peelmaps(smpl_pose)

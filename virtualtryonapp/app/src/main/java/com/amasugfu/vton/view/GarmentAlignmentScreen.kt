@@ -1,6 +1,7 @@
 package com.amasugfu.vton.view
 
 import android.app.Activity
+import androidx.activity.ComponentActivity
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -198,7 +199,7 @@ fun PoseSettings() {
                 .clip(shape = RoundedCornerShape(10.dp))
                 .background(AlphaGray)
                 .clickable (
-                    onClick = { viewModel.allowOrbit = touched },
+                    onClick = { viewModel.allowMove = touched },
                     indication = null,
                     interactionSource = interactionSource
                 ),
@@ -258,6 +259,7 @@ fun LoadingScreen() {
 @Composable
 fun ShowCaseOptions() {
     val viewModel: GarmentAlignmentViewModel = viewModel()
+    val activity = LocalContext.current as ComponentActivity
 
     RoundIconButton(
         onClick = {
@@ -268,7 +270,9 @@ fun ShowCaseOptions() {
 
     RoundIconButton(
         onClick = {
-            viewModel.confirmResult()
+            viewModel.confirmResult {
+                activity.finish()
+            }
         },
         id = R.drawable.ic_tick
     )

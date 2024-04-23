@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,19 +49,24 @@ fun PoseDetectionScreen() {
             }
         )
 
-        // graphic overlay
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = {
-                graphicOverlay
-            }
-        )
+//        // graphic overlay
+//        AndroidView(
+//            modifier = Modifier.fillMaxSize(),
+//            factory = {
+//                graphicOverlay
+//            }
+//        )
+
+        Model3DView(viewModel, transparent = true)
 
         // control buttons
         Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(25.dp)
         ) {
             RoundIconButton(viewModel::flipCamera, R.drawable.ic_flip_camera)
+
+            var rigid by viewModel.rigidMovement
+            RoundIconButton({ rigid = !rigid }, R.drawable.ic_flip_camera, isToggle = { rigid })
         }
     }
 }

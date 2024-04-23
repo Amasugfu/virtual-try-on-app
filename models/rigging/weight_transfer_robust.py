@@ -11,9 +11,6 @@ from multiprocessing import current_process
 
 from .utils import compute_closest_position, composite_bary_weights
 
-if current_process().name == 'MainProcess':
-    import bpy
-
 
 def compute_angle(normals, directions):
     normals = normalize(normals, axis=1)

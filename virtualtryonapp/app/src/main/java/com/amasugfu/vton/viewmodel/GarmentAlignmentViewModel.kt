@@ -215,7 +215,7 @@ class GarmentAlignmentViewModel @Inject constructor(
         return transpose(Mat4.of(*model)) * viewSpacePosition
     }
 
-    fun confirmResult() {
+    fun confirmResult(onCompleted: () -> Unit) {
         loading.value = true
         loadingJob = viewModelScope.launch {
             try {
@@ -229,6 +229,8 @@ class GarmentAlignmentViewModel @Inject constructor(
                 e.printStackTrace()
             }
             loading.value = false
+
+            onCompleted()
         }
     }
 

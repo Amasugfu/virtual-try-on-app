@@ -5,12 +5,14 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.amasugfu.vton.view.PoseDetectionScreen
 import com.amasugfu.vton.view.theme.VirtualtryonappTheme
+import com.amasugfu.vton.viewmodel.PoseDetectionViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -40,6 +42,8 @@ class PoseDetectionActivity : ComponentActivity() {
         }
     }
 
+    val poseDetectionViewModel: PoseDetectionViewModel by viewModels()
+
 //    val garmentIOverlay3DViewModel: Model3DViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,20 +60,20 @@ class PoseDetectionActivity : ComponentActivity() {
         }
     }
 
-//    override fun onResume() {
-//        super.onResume()
-//        garmentIOverlay3DViewModel.postFrameCallback()
-//    }
-//
-//    override fun onPause() {
-//        super.onPause()
-//        garmentIOverlay3DViewModel.removeFrameCallback()
-//    }
-//
-//    override fun onDestroy() {
-//        super.onDestroy()
-//        garmentIOverlay3DViewModel.removeFrameCallback()
-//    }
+    override fun onResume() {
+        super.onResume()
+        poseDetectionViewModel.postFrameCallback()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        poseDetectionViewModel.removeFrameCallback()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        poseDetectionViewModel.removeFrameCallback()
+    }
 
     private fun requestPermissions() {
         permissionRequestLauncher.launch(REQUIRED_PERMISSIONS)

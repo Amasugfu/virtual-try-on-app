@@ -3,7 +3,6 @@ package com.amasugfu.vton.di
 import android.app.Application
 import android.content.res.AssetManager
 import com.amasugfu.vton.data.repo.*
-import com.google.android.filament.utils.Mat4
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -47,5 +46,5 @@ abstract class ApplicationInterfaceModule {
     @Binds
     abstract fun bindPoseDetector(
         remotePoseReconstruction: RemotePoseReconstruction
-    ) : IResourceRetriever<ArrayList<Mat4>>
+    ) : IResourceRetriever<FloatArray>
 }

@@ -113,7 +113,7 @@ fun RoundIconButton(
 }
 
 @Composable
-fun Model3DView(viewModel: Model3DViewModel) {
+fun Model3DView(viewModel: Model3DViewModel, transparent: Boolean = false) {
     val context = LocalContext.current
 
     AndroidView(
@@ -123,7 +123,7 @@ fun Model3DView(viewModel: Model3DViewModel) {
                     viewModel.bindSurface(it)
                 }
                 .also {
-                    viewModel.displayScene(it, false)
+                    viewModel.displayScene(it, transparent)
                 }
         },
         modifier = Modifier

@@ -34,11 +34,11 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
         self._client_cache = {}
         
     def transfer_weights(self, client_id):
-        #############################################################
-        ### debug block
-        with open("debug_results/result_rigged.glb", "rb") as f:
-            return f.read()
-        #############################################################
+        # #############################################################
+        # ### debug block
+        # with open("debug_results/result_rigged.glb", "rb") as f:
+        #     return f.read()
+        # #############################################################
         
         cache = self._client_cache[client_id]
         return paint_mesh_to_glb(cache.output_mesh, cache.input_pose)
@@ -83,19 +83,23 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
         return smpl_pose
     
 class PoseDetectionServicer(requests_pb2_grpc.PoseDetectionServicer):
-    def __init__(self, romp=ROMP(romp_settings(["--mode=webcam"]))) -> None:
+    def __init__(self, romp=ROMP(romp_settings(["--mode=webcam", "--show"]))) -> None:
         super().__init__()
         self._romp = romp
         
     def getPose(self, request, context):
         img = np.frombuffer(request.buffer[0], dtype=np.uint8).reshape(720, 1280, 4)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
-        out = self._romp(np.transpose(img, (1, 0, 2))[::-1, ::-1, :])
         
+        out = self._romp(np.transpose(img, (1, 0, 2))[::-1, ::-1, :])
+        pose = np.hstack([out["global_orient"], out["body_pose"]]).squeeze()
+        pose = np.rad2deg(pose)
+        trans = (out["cam_trans"] + out["joints"][:, 0]).squeeze()
+
         return requests_pb2.FloatMat(
-            num_dim = 3,
-            shape = [24, 4, 4],
-            data = np.zeros(384)
+            num_dim = 1,
+            shape = [75],
+            data = np.hstack([trans, pose])
         )
 
         

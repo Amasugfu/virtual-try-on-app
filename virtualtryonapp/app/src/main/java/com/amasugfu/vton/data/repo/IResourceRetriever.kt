@@ -7,8 +7,6 @@ import Requests.GarmentReconstructionRequest
 import android.content.res.AssetManager
 import android.graphics.Bitmap
 import com.amasugfu.vton.data.domain.GetSharedPreferenceUseCase
-import com.google.android.filament.utils.Float4
-import com.google.android.filament.utils.Mat4
 import floatMat
 import io.grpc.Channel
 import io.grpc.ManagedChannelBuilder
@@ -142,7 +140,7 @@ class RemoteGarmentReconstruction @Inject constructor(
 
 class RemotePoseReconstruction @Inject constructor(
     val getSharedPreferenceUseCase: GetSharedPreferenceUseCase,
-) : IResourceRetriever<ArrayList<Mat4>> {
+) : IResourceRetriever<FloatArray> {
 
     protected lateinit var channel: Channel
     protected lateinit var stub: PoseDetectionGrpcKt.PoseDetectionCoroutineStub
@@ -158,27 +156,27 @@ class RemotePoseReconstruction @Inject constructor(
         stub = PoseDetectionGrpcKt.PoseDetectionCoroutineStub(channel)
     }
 
-    override suspend fun postRetrievalRequest(data: Any?): ArrayList<Mat4> {
+    override suspend fun postRetrievalRequest(data: Any?): FloatArray {
         // call remote service
         connect()
 
         val buffer = data as Requests.ByteBuffer
-        val floatMat = stub.withDeadlineAfter(3, TimeUnit.MINUTES)
+        val pose = stub.withDeadlineAfter(3, TimeUnit.MINUTES)
             .getPose(buffer)
 
-        val response = ArrayList<Mat4>()
+//        val response = ArrayList<Mat4>()
 
-        for (i in 0..23) {
-            response.add(
-                Mat4(
-                    Float4(floatMat.getData(i*16    ), floatMat.getData(i*16 + 1), floatMat.getData(i*16 + 2), floatMat.getData(i*16 + 3)),
-                    Float4(floatMat.getData(i*16 + 4), floatMat.getData(i*16 + 5), floatMat.getData(i*16 + 6), floatMat.getData(i*16 + 7)),
-                    Float4(floatMat.getData(i*16 + 8), floatMat.getData(i*16 + 9), floatMat.getData(i*16 + 10), floatMat.getData(i*16 + 11)),
-                    Float4(floatMat.getData(i*16 + 12), floatMat.getData(i*16 + 13), floatMat.getData(i*16 + 14), floatMat.getData(i*16 + 15)),
-                )
-            )
-        }
+//        for (i in 0..23) {
+//            response.add(
+//                Mat4(
+//                    Float4(floatMat.getData(i*16    ), floatMat.getData(i*16 + 1), floatMat.getData(i*16 + 2), floatMat.getData(i*16 + 3)),
+//                    Float4(floatMat.getData(i*16 + 4), floatMat.getData(i*16 + 5), floatMat.getData(i*16 + 6), floatMat.getData(i*16 + 7)),
+//                    Float4(floatMat.getData(i*16 + 8), floatMat.getData(i*16 + 9), floatMat.getData(i*16 + 10), floatMat.getData(i*16 + 11)),
+//                    Float4(floatMat.getData(i*16 + 12), floatMat.getData(i*16 + 13), floatMat.getData(i*16 + 14), floatMat.getData(i*16 + 15)),
+//                )
+//            )
+//        }
 
-        return response
+        return pose.dataList.toFloatArray()
     }
 }

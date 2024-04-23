@@ -103,6 +103,7 @@ def o3d_to_skinned_glb(vertices, faces, export_path, colors, weights=None, armat
             material_name = "material0"
             material = bpy.data.materials.new(name=material_name)
             material.use_nodes = True
+            material.shadow_method = 'NONE'
             obj.data.materials.append(material)
 
             # Get node tree from the material
