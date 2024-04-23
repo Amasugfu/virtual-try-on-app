@@ -1,4 +1,4 @@
-# Real-Time Virtual Try-On Using Comuopter Vision and Augmented Reality
+# Real-Time Virtual Try-On Using Computer Vision and Augmented Reality
 
 This is the source code of the final year project - **Real-Time Virtual Try-On Using Comuopter Vision and Augmented Reality**. This includes:
 
