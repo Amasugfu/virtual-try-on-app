@@ -7,6 +7,7 @@ models/data
 models/smpl
 models/res
 models/smpl_romp
+models/xcloth/tests
 
 debug_results
 
