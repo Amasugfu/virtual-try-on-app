@@ -165,7 +165,6 @@ dependencies:
       - attrs==23.1.0
       - blinker==1.7.0
       - bpy==4.0.0
-      - cholespy==1.0.0
       - chumpy==0.70
       - click==8.1.7
       - cloudpickle==3.0.0
@@ -182,7 +181,6 @@ dependencies:
       - farama-notifications==0.0.4
       - fastjsonschema==2.18.1
       - filterpy==1.4.5
-      - flask==3.0.0
       - freetype-py==2.4.0
       - fsspec==2023.10.0
       - fvcore==0.1.5.post20221221
@@ -201,11 +199,9 @@ dependencies:
       - jsonschema-specifications==2023.7.1
       - jupyter-client==7.4.9
       - jupyterlab-widgets==3.0.9
-      - kaolin==0.15.0
       - lap==0.4.0
       - lazy-loader==0.4
       - marshmallow==3.21.1
-      - multi-person-tracker==0.1
       - multiprocessing-logging==0.3.4
       - mypy-extensions==1.0.0
       - nbformat==5.5.0
@@ -221,7 +217,6 @@ dependencies:
       - pygltflib==1.16.2
       - pyopengl==3.1.0
       - pyrender==0.1.45
-      - pytorch3d==0.7.5
       - pytube==15.0.0
       - pywin32==306
       - referencing==0.30.2
@@ -248,12 +243,10 @@ dependencies:
       - trimesh==3.23.5
       - typing-inspect==0.9.0
       - usd-core==23.5
-      - vibe==0.2
       - werkzeug==3.0.1
       - wget==3.2
       - wheel==0.37.1
       - widgetsnbextension==4.0.9
       - wrapt==1.16.0
       - yacs==0.1.8
-      - yolov3==0.1
       - zstandard==0.22.0
