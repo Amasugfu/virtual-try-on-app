@@ -18,24 +18,12 @@ def __epoch(
         weight: List[float],
         reduction: str|None,
         separate_bg: bool):
-    """
-    @param: X_train: N x B x C[4 (image) + P (peelmaps)] x H[512] x W[512]
-    @param: Y_train: Dict[N x B x P x C[1 (depth) | 3 (normal) | 3 (rgb)] x H x W]
-    
-    P: number of peelmaps
-    N: number of batches
-    B: batch size
-    C: number of channels
-    H: height
-    W: width
-    """
-
     loss_hist = []
 
     loss_l1 = nn.L1Loss(reduction=reduction)
     loss_l2 = nn.MSELoss(reduction=reduction)
     
-    for X, y_depth, y_norm, y_rgb in dataloader:
+    for _, X, y_depth, y_norm, y_rgb in dataloader:
         optimizer.zero_grad()
         
         # B x P x H x W
@@ -89,16 +77,7 @@ def train_model(
         separate_bg: bool = False):
     
     """
-    @param: X_train: N x B x C[8] x H[512] x W[512]
-    @param: Y_train: Dict[N x B x P x C[1 (depth) | 3 (normal) | 3 (rgb)] x H x W]
     @param: weight: loss weight in the order of [depth, seg, norm, rgb, [fg, bg]]
-    
-    P: number of peelmaps
-    N: number of batches
-    B: batch size
-    C: number of channels
-    H: height
-    W: width
     """
     loss_hist = []
     optim = optimizer(model.parameters(), lr=lr)

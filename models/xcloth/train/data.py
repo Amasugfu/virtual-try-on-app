@@ -8,6 +8,8 @@ from ..settings.model_settings import DEFAULT_XCLOTH_SETTINGS
 
 import os, glob
 import pickle
+import re
+
 import torch
 from torch.utils.data import Dataset
 
@@ -24,7 +26,7 @@ def load_dir(root_dir, sub_dir, target, mask=None, excld=True):
     @param: mask: white/blacklist
     @param: exclud: `True` if the mask is a blacklist and `False` if the mask is whitelist
     """
-    for filename in glob.iglob(f"{root_dir}/{sub_dir}/*-1.pkl"):
+    for filename in glob.iglob(f"{root_dir}/{sub_dir}/*.pkl"):
         name = filename.replace('\\', '/').split('/')[-1][:-4]
 
         if mask is not None:
@@ -82,8 +84,12 @@ class MeshDataSet(Dataset):
         return len(self.__common_keys)
     
     def __getitem__(self, index) -> Any:
-        X, y = self.make_Xy(self.__common_keys[index])
-        return X, y["Depth"], y["Norm"], y["RGB"]
+        name = self.__common_keys[index]
+        X, y = self.make_Xy(name)
+        return name, X, y["Depth"], y["Norm"], y["RGB"]
+
+    def find_indices_of_ids(self, ids):
+        return [i for i in range(len(self.__common_keys)) if re.match(f"^({'|'.join(ids)})-.*$", self.__common_keys[i])]
 
     def reload_all(self):
         load_dir(self.__root_dir, self.__pose_dir, self.__registered_pose, self.__mask, self.__excld)
@@ -154,6 +160,9 @@ class MeshDataSet(Dataset):
 
 
 class DataProccessor:
+    """
+    process the data
+    """
     def __init__(self, settings=DEFAULT_XCLOTH_SETTINGS) -> None:
         self.__settings = settings
         self.__TARGET_FUNC_MAP = {

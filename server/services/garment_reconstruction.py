@@ -44,6 +44,9 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
         return paint_mesh_to_glb(cache.output_mesh, cache.input_pose)
     
     def reconstruct(self, request, context):
+        """
+        reconstruct the garment model given the alignment information and the image
+        """
         client_id = context.peer()
         
         pose = protomat2numpy(request.pose)
@@ -74,6 +77,9 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
             
     @staticmethod
     def to_smpl_pose(pose):
+        """
+        convert received axis angle to full smpl pose matrix
+        """
         smpl_pose = np.zeros((24, 3))
         smpl_pose[16, 2] = pose[-4]
         smpl_pose[17, 2] = pose[-3]
@@ -82,12 +88,16 @@ class GarmentReconstructionServicer(requests_pb2_grpc.GarmentReconstructionServi
         smpl_pose = np.deg2rad(smpl_pose) * -1
         return smpl_pose
     
+    
 class PoseDetectionServicer(requests_pb2_grpc.PoseDetectionServicer):
     def __init__(self, romp=ROMP(romp_settings(["--mode=webcam", "--show"]))) -> None:
         super().__init__()
         self._romp = romp
         
     def getPose(self, request, context):
+        """
+        detect smpl pose from the input image
+        """
         img = np.frombuffer(request.buffer[0], dtype=np.uint8).reshape(720, 1280, 4)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
         
@@ -104,6 +114,15 @@ class PoseDetectionServicer(requests_pb2_grpc.PoseDetectionServicer):
 
         
 def serve(port=50000, pipeline: Pipeline = Pipeline()):
+    """start server
+
+    Parameters
+    ----------
+    port : int, optional
+        server port, by default 50000
+    pipeline : Pipeline, optional
+        pipeline to reconstruct the model, by default Pipeline()
+    """
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     requests_pb2_grpc.add_GarmentReconstructionServicer_to_server(
         GarmentReconstructionServicer(pipeline=pipeline),
