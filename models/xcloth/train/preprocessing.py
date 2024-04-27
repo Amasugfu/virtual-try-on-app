@@ -155,7 +155,7 @@ def process_garments(
 
 
 def process_poses(
-    src_dict: str|Any,
+    src_dict: str|dict,
     smpl_path: str,
     grid_dim: Tuple[int, int] = (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w), 
     fov: Tuple[float, float] = (np.pi / 3, np.pi / 3), 
@@ -165,12 +165,32 @@ def process_poses(
     smpl_vert: np.ndarray | None = None,
     smpl_face: np.ndarray | None = None,
 ):
-    """
-    process the pose into peelmap representation
+    """process the pose into peelmap representation
 
-    @param: path: the path to the obj model
-    
-    @return: depth peelmaps
+    Parameters
+    ----------
+    src_dict : str | dict
+        path or dict storing the pose, translation and scale
+    smpl_path : str
+        path to root smpl
+    grid_dim : Tuple[int, int], optional
+        peelmap height and weight, by default (DEFAULT_XCLOTH_SETTINGS.input_h, DEFAULT_XCLOTH_SETTINGS.input_w)
+    fov : Tuple[float, float], optional
+        camera fov, by default (np.pi / 3, np.pi / 3)
+    z : float, optional
+        camera distance away from the mesh along the z-axis, by default 1.0
+    max_hits : int, optional
+        number of hits of ray, by default DEFAULT_XCLOTH_SETTINGS.n_peelmaps
+    return_joints : bool, optional
+        whether to return joints position, by default False
+    smpl_vert : np.ndarray | None, optional
+        smpl vertices, by default None
+    smpl_face : np.ndarray | None, optional
+        smpl faces, by default None
+
+    Returns
+    -------
+    depth peelmaps, [joints position]
     """
     if isinstance(src_dict, str):
         with open(src_dict, "rb") as f:

@@ -7,7 +7,8 @@ models/data
 models/smpl
 models/res
 models/smpl_romp
-models/debug_results
+
+debug_results
 
 __pycache__/
 *.py[cod]

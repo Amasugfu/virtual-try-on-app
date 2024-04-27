@@ -128,6 +128,16 @@ def o3d_to_skinned_glb(vertices, faces, export_path, colors, weights=None, armat
         
         
 if __name__ == "__main__":
+    """
+    script to convert vertices, faces, colors in numpy array to mesh in glb format using blender python api
+    
+    v: vertices
+    f: faces in vertex indices
+    o: output path
+    c: color
+    w: skinning weights    
+    a: armature path (in glb format)
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", required=True)
     parser.add_argument("-f", required=True)

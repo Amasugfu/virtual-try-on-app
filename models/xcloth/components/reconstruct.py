@@ -114,7 +114,6 @@ def refine_geometry(
     min_dist: float,
     sampler_mesh: o3d.geometry.TriangleMesh,
     dilate_factor: float,
-    merge_eps: float = 1e-2,
 ):
     # combine partial meshes
     mesh = np.sum(meshes)
@@ -151,7 +150,7 @@ def refine_geometry(
     return sampler_mesh
 
 
-def map_texture(meshes, refined, rgb_map):
+def map_texture(meshes, refined, rgb_map):    
     # auto seam estimation
     vertices = [np.asarray(mesh.vertices) for mesh in meshes]
     labels = [np.full(v.shape[0], i) for i, v in enumerate(vertices)]

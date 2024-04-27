@@ -30,6 +30,23 @@ def compute_closest_position(src_mesh, tgt_mesh):
 
 
 def composite_bary_weights(src_mesh, src, bary_weights, face_ids):
+    """compute vectors based on the barycentric weights
+
+    Parameters
+    ----------
+    src_mesh : open3d.geometry.TriangleMesh
+        the mesh to compute on
+    src : np.ndarray
+        the values to sum up
+    bary_weights : np.ndarray
+        the barycentric weights
+    face_ids : np.ndarray
+        the face id the weights belongs to
+
+    Returns
+    -------
+    weighted sum of the values
+    """
     faces = np.asarray(src_mesh.triangles)[face_ids]
     weights = src[faces.flatten()].reshape((*faces.shape, -1))
     bary_weights = normalize(bary_weights, axis=1)
@@ -37,6 +54,19 @@ def composite_bary_weights(src_mesh, src, bary_weights, face_ids):
 
 
 def paint_mesh_to_glb(mesh, pose):
+    """add skeleton and skinning weights to the static mesh using the smpl mesh
+
+    Parameters
+    ----------
+    mesh : open3d.geometry.TriangleMesh
+        the target mesh
+    pose : np.ndarray
+        smpl pose
+
+    Returns
+    -------
+    glb file in raw bytes
+    """
     smpl_mesh, _, _, weights = pose_smpl(pose, return_mesh=True, return_weights=True)
     from .weight_transfer_robust import transfer_weights
     try:

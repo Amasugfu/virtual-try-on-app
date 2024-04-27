@@ -116,6 +116,10 @@ class Pipeline:
         x_pose : ndarray
             first 3 elements are camera position, followed by 4 euler angle value for
             z-axis of left shoulder, right shoulder, left hip and right hip
+            
+        Returns
+        -------
+        (depth peelmaps of the smpl, pelvis position)
         """
         verts, joints, _, _, faces = pose_smpl(pose, return_faces=True)
 
@@ -147,8 +151,36 @@ class Pipeline:
         return pm_depth, joints[0].detach().cpu().numpy()
 
     def transform_image(
-        self, img, center, trans, input_scale, corner1, corner2
+        self, 
+        img: np.ndarray, 
+        center: np.ndarray, 
+        trans: np.ndarray, 
+        input_scale: float, 
+        corner1: np.ndarray, 
+        corner2: np.ndarray
     ):
+        """transfrom the image to fit the camera and the smpl human
+
+        Parameters
+        ----------
+        img : np.ndarray
+            the input garment image
+        center : np.ndarray
+            the center position to align with. (smpl pelvis)
+        trans : np.ndarray
+            tanslation in xyz
+        input_scale : float
+            scale of the mobile coordinates
+        corner1 : np.ndarray
+            position of the top-left corner of the image
+        corner2 : np.ndarray
+            position of the top-left corner of the image
+
+        Returns
+        -------
+        np.ndarray
+            aligned image
+        """
         size_h, size_w = self._model.dims
         size = np.array([size_w, size_h])
         sep = compute_pixsep(size, self.camera_settings.fov, self.camera_settings.z)
@@ -172,6 +204,21 @@ class Pipeline:
         return padded
 
     def reconstruct(self, x_img, x_smpl, center):
+        """reconstruct the garment
+
+        Parameters
+        ----------
+        x_img : np.ndarray
+            input image
+        x_smpl : np.ndarray
+            smpl depth peelmaps
+        center : np.ndarray
+            center translation
+
+        Returns
+        -------
+        (reconstructed mesh in glb bytes, open3d triangle mesh)
+        """
         # #############################################################
         # ### debug block
         # with open("debug_results/result.glb", "rb") as glb:

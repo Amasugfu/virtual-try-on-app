@@ -97,7 +97,8 @@ def compute_closest_point(mesh, points):
 def create_distance_filter(points, filter_obj, u_dist=None, l_dist=None):
     """
     @param: filter_obj: the triangular mesh to compute the distance from
-    @param: dist: the max distance away from the `filter_obj`
+    @param: u_dist: the max distance away from the `filter_obj`
+    @param: l_dist: the min distance away from the `filter_obj`
 
     @return: a filter masking only the vertices that is within the distance from the `filter_obj`
     """
@@ -169,6 +170,29 @@ def psr(pcd, depth):
 
             
 def pose_smpl(pose, gender="male", return_T_only=False, return_mesh=False, return_faces=False, return_weights=False, device="cuda"):
+    """pose the smpl model
+
+    Parameters
+    ----------
+    pose : np.ndarray
+        the pose array for the the smplx package
+    gender : str, optional
+        smplx settings, by default "male"
+    return_T_only : bool, optional
+        return the transformation matrix, by default False
+    return_mesh : bool, optional
+        return the open3d mesh, by default False
+    return_faces : bool, optional
+        return the face in vertex indices, by default False
+    return_weights : bool, optional
+        return the smpl skinning weights, by default False
+    device : str, optional
+        y default "cuda"
+
+    Returns
+    -------
+    Optional[open3d triagnle mesh | (vertices, joints)], transformation matrix, pose offsets, Optional[weights], Optional[face]
+    """
     smpl = SMPL(model_path="models/smpl", gender=gender).to(device=device)
     with torch.no_grad():
         fin_pose= torch.FloatTensor(pose).unsqueeze(0).to(device=device)
@@ -205,6 +229,21 @@ def pose_smpl(pose, gender="male", return_T_only=False, return_mesh=False, retur
         
 
 def o3d_to_skinned_glb(mesh, export_folder, weights=None, armature_path="models/data/test_data/assets/smpl_male_blend2.glb", output_name="result.glb"):
+    """convert open3d mesh to glb by calling o3d_to_glb.py
+
+    Parameters
+    ----------
+    mesh : open3d.geometry.TriangleMesh
+        the input mesh
+    export_folder : str
+        output folder
+    weights : np.ndarray, optional
+        the weights of each vertices on each joints, by default None
+    armature_path : str, optional
+        the glb file storing the armature/skeleton, by default "models/data/test_data/assets/smpl_male_blend2.glb"
+    output_name : str, optional
+        name of the output file, by default "result.glb"
+    """
     vertices = np.asarray(mesh.vertices)
     faces = np.asarray(mesh.triangles)
     colors = np.asarray(mesh.vertex_colors)
