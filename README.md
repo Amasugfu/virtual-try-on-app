@@ -19,7 +19,7 @@ The background, objectives, paper works and more can be found [[here]](https://w
 ```bash
 conda env create -f environment.yml
 ```
-2. Install SMPL model and put the model under `models/smpl/`
+2. Install SMPL models [[offical website]](https://smpl.is.tue.mpg.de/) and put the models under `models/smpl/` 
 
 3. [Optional] Download the pretrained weights [[here]](https://connecthkuhk-my.sharepoint.com/:f:/g/personal/u3578889_connect_hku_hk/El_JImBOplpGum-D-d5mlC0BjSVqOWO7btgbjOe8HKmMJw?e=sM3CAH)
 
